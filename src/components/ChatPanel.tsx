@@ -24,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 interface Message {
   role: "user" | "assistant";
@@ -35,6 +36,24 @@ const suggestions = [
   "Create a PRD for the most requested feature.",
   "Which pain points appear most frequently in the interviews?",
 ];
+
+const insightStatusColors: Record<InsightStatus, { border: string; badge: string; label: string }> = {
+  not_started: {
+    border: "border-l-slate-400 dark:border-l-slate-500",
+    badge: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-400/30",
+    label: "Not started",
+  },
+  in_progress: {
+    border: "border-l-amber-500 dark:border-l-amber-400",
+    badge: "bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/30",
+    label: "In progress",
+  },
+  done: {
+    border: "border-l-emerald-500 dark:border-l-emerald-400",
+    badge: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/30",
+    label: "Done",
+  },
+};
 
 const ChatPanel = () => {
   const { currentProjectId, currentProject } = useProject();
@@ -401,9 +420,9 @@ const ChatPanel = () => {
               aria-label="Filter by status"
             >
               <option value="all">All</option>
-              <option value="not_started">Not started</option>
-              <option value="in_progress">In progress</option>
-              <option value="done">Done</option>
+              <option value="not_started">{insightStatusColors.not_started.label}</option>
+              <option value="in_progress">{insightStatusColors.in_progress.label}</option>
+              <option value="done">{insightStatusColors.done.label}</option>
             </select>
           </div>
           <ul className="space-y-2">
@@ -413,7 +432,10 @@ const ChatPanel = () => {
               return (
               <li
                 key={globalIndex}
-                className="flex flex-col sm:flex-row sm:items-start gap-2 text-sm text-foreground bg-background border border-border rounded-lg px-3 py-2"
+                className={cn(
+                  "flex flex-col sm:flex-row sm:items-start gap-2 text-sm text-foreground bg-background border border-border rounded-lg px-3 py-2 border-l-4",
+                  insightStatusColors[status].border
+                )}
               >
                 <div className="flex-1 min-w-0 flex items-center gap-2">
                   <div className="flex flex-col gap-0 shrink-0">
@@ -436,16 +458,25 @@ const ChatPanel = () => {
                       <ChevronDown className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium shrink-0",
+                      insightStatusColors[status].badge
+                    )}
+                    title="Status"
+                  >
+                    {insightStatusColors[status].label}
+                  </span>
                   <select
                     value={status}
                     onChange={(e) => setInsightStatus(globalIndex, e.target.value as InsightStatus)}
                     className="text-xs rounded border border-border bg-muted/50 px-2 py-0.5 text-foreground"
                     aria-label="Set status"
-                    title="Status"
+                    title="Change status"
                   >
-                    <option value="not_started">Not started</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="done">Done</option>
+                    {(["not_started", "in_progress", "done"] as const).map((s) => (
+                      <option key={s} value={s}>{insightStatusColors[s].label}</option>
+                    ))}
                   </select>
                   <span className="min-w-0">{insight.summary}</span>
                 </div>

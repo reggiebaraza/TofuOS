@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from '@supabase/supabase-js';
-import { withGeminiRetry, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
+import { withGeminiModelFallback, getGeminiModelList, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
 
 const MAX_CONTEXT_PER_SOURCE = 28000;
 const MAX_CONTEXT_TOTAL = 120000;
@@ -66,25 +66,19 @@ export async function POST(req: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const model = genAI.getGenerativeModel({ model: modelName });
-
-    const chat = model.startChat({
-      history: (history || []).map((h: { role: string; content: string }) => ({
-        role: h.role === "assistant" ? "model" : "user",
-        parts: [{ text: h.content }],
-      })),
-      generationConfig: {
-        maxOutputTokens: 8192,
-      },
-    });
-
-    const fullPrompt = `Context:\n${context}\n\nUser Question: ${message}`;
-
-    const content = await withGeminiRetry(async () => {
+    const content = await withGeminiModelFallback(genAI, getGeminiModelList(), async (model) => {
+      const chat = model.startChat({
+        history: (history || []).map((h: { role: string; content: string }) => ({
+          role: h.role === "assistant" ? "model" : "user",
+          parts: [{ text: h.content }],
+        })),
+        generationConfig: {
+          maxOutputTokens: 8192,
+        },
+      });
+      const fullPrompt = `Context:\n${context}\n\nUser Question: ${message}`;
       const result = await chat.sendMessage(fullPrompt);
-      const response = await result.response;
-      return response.text();
+      return result.response.text();
     });
     
     return NextResponse.json({ content });

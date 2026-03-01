@@ -1,9 +1,27 @@
 /**
  * Call a Gemini API function with retry on 429 (rate limit).
- * Retries once after a delay, then returns a user-friendly error.
+ * Supports fallback to alternative Gemini models when one hits quota.
  */
+import type { GoogleGenerativeAI } from "@google/generative-ai";
+
 const RATE_LIMIT_RETRY_DELAY_MS = 30_000; // 30 seconds
 const MAX_RETRIES = 1;
+
+/** Default model list: primary first, then fallbacks (separate quotas per model). */
+export const GEMINI_FALLBACK_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+] as const;
+
+export function getGeminiModelList(): string[] {
+  const env = process.env.GEMINI_MODEL?.trim();
+  if (env) {
+    const rest = GEMINI_FALLBACK_MODELS.filter((m) => m !== env);
+    return [env, ...rest];
+  }
+  return [...GEMINI_FALLBACK_MODELS];
+}
 
 function isRateLimitError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -29,6 +47,32 @@ export async function withGeminiRetry<T>(
         continue;
       }
       throw error;
+    }
+  }
+  throw lastError;
+}
+
+type GenerativeModel = Awaited<ReturnType<GoogleGenerativeAI["getGenerativeModel"]>>;
+
+/**
+ * Run a Gemini operation with model fallback: if the primary model returns
+ * a rate limit (429/quota), try the next model in the list. Each model is
+ * tried with withGeminiRetry (one retry after delay) before falling back.
+ */
+export async function withGeminiModelFallback<T>(
+  genAI: GoogleGenerativeAI,
+  modelNames: string[],
+  fn: (model: GenerativeModel) => Promise<T>
+): Promise<T> {
+  let lastError: unknown;
+  for (const modelName of modelNames) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      return await withGeminiRetry(() => fn(model));
+    } catch (error) {
+      lastError = error;
+      if (!isRateLimitError(error)) throw error;
+      console.warn(`[Gemini] Rate limit on model "${modelName}", trying next model.`);
     }
   }
   throw lastError;

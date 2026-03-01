@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from '@supabase/supabase-js';
-import { withGeminiRetry, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
+import { withGeminiModelFallback, getGeminiModelList, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
 
 const MAX_CONTEXT_PER_SOURCE = 28000;  // chars per source to stay within context
 const MAX_CONTEXT_TOTAL = 120000;      // total chars across all sources
@@ -61,10 +61,6 @@ export async function POST(req: Request) {
       }
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const model = genAI.getGenerativeModel({ model: modelName });
-
     const prompt = `You are a product management assistant. The user has selected the following sources. Below is the actual content extracted from each source (where available). Use this content to derive concrete, evidence-based insights.
 
 ${sourceContext}
@@ -76,7 +72,8 @@ Generate 4 insights based on the content above. For each insight provide:
 Return a valid JSON object with a single key 'insights' containing an array of 4 objects, each with keys "summary" and "description".
 Example: {"insights": [{"summary": "Short title", "description": "Longer detail here."}, ...]}`;
 
-    const data = await withGeminiRetry(async () => {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const data = await withGeminiModelFallback(genAI, getGeminiModelList(), async (model) => {
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();

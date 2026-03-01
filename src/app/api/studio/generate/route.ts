@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from '@supabase/supabase-js';
-import { withGeminiRetry, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
+import { withGeminiModelFallback, getGeminiModelList, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
 
 const MAX_CONTEXT_PER_SOURCE = 28000;
 const MAX_CONTEXT_TOTAL = 120000;
@@ -77,10 +77,6 @@ export async function POST(req: Request) {
       }
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const model = genAI.getGenerativeModel({ model: modelName });
-
     const prompt = `You are a product and engineering assistant. The user has selected these sources. Below is the actual content extracted from each source (where available). Use this content to generate the document.
 
 ${sourceContext}
@@ -89,7 +85,8 @@ Task: ${instruction}
 
 Generate the full document. Use markdown for structure (headers, lists, code blocks where appropriate). Base your output on the source content above. Do not include meta-commentary; just output the document.`;
 
-    const content = await withGeminiRetry(async () => {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const content = await withGeminiModelFallback(genAI, getGeminiModelList(), async (model) => {
       const result = await model.generateContent(prompt);
       const response = await result.response;
       return response.text();
