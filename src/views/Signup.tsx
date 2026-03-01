@@ -143,6 +143,10 @@ const Signup = () => {
                         autoComplete="email"
                         disabled={isSubmitting}
                         {...field}
+                        onChange={(e) => {
+                          setSubmitError(null);
+                          field.onChange(e);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -162,6 +166,10 @@ const Signup = () => {
                         autoComplete="new-password"
                         disabled={isSubmitting}
                         {...field}
+                        onChange={(e) => {
+                          setSubmitError(null);
+                          field.onChange(e);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -181,6 +189,10 @@ const Signup = () => {
                         autoComplete="new-password"
                         disabled={isSubmitting}
                         {...field}
+                        onChange={(e) => {
+                          setSubmitError(null);
+                          field.onChange(e);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />

@@ -44,37 +44,48 @@ const chartConfig = {
 const Analytics = () => {
   const [stats, setStats] = useState<ProjectStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
+    setError(null);
 
     async function load() {
-      const projects = await fetchProjects();
-      if (!mounted || !projects.length) {
-        setStats([]);
-        setLoading(false);
-        return;
-      }
+      try {
+        const projects = await fetchProjects();
+        if (!mounted) return;
+        if (!projects.length) {
+          setStats([]);
+          setLoading(false);
+          return;
+        }
 
-      const results = await Promise.all(
-        projects.map(async (project) => {
-          const [sources, insights, messages] = await Promise.all([
-            fetchSources(project.id),
-            getProjectInsights(project.id),
-            getChatMessages(project.id),
-          ]);
-          return {
-            project,
-            sourcesCount: sources.length,
-            insightsCount: insights.length,
-            messagesCount: messages.length,
-          };
-        }),
-      );
-      if (mounted) {
-        setStats(results);
+        const results = await Promise.all(
+          projects.map(async (project) => {
+            const [sources, insights, messages] = await Promise.all([
+              fetchSources(project.id),
+              getProjectInsights(project.id),
+              getChatMessages(project.id),
+            ]);
+            return {
+              project,
+              sourcesCount: sources.length,
+              insightsCount: insights.length,
+              messagesCount: messages.length,
+            };
+          }),
+        );
+        if (mounted) {
+          setStats(results);
+        }
+      } catch (e) {
+        if (mounted) {
+          setError(e instanceof Error ? e.message : "Failed to load analytics");
+          setStats([]);
+        }
+      } finally {
+        if (mounted) setLoading(false);
       }
-      setLoading(false);
     }
 
     load();
@@ -114,6 +125,11 @@ const Analytics = () => {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-8">
+        {error && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="border-border">
@@ -210,6 +226,8 @@ const Analytics = () => {
           <CardContent>
             {loading ? (
               <p className="text-sm text-muted-foreground py-4">Loading…</p>
+            ) : error ? (
+              <p className="text-sm text-destructive py-4 text-center">{error}</p>
             ) : stats.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4">No projects yet. Create one from the app header.</p>
             ) : (

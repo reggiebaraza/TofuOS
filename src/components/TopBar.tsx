@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Plus, BarChart3, Share2, Settings, ChevronDown, LogOut, FolderOpen, Pencil, Trash2, Bot } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { updateProject, deleteProject, type Project } from "@/lib/api";
@@ -97,12 +98,12 @@ const TopBar = () => {
     <header className="h-14 border-b border-border flex items-center justify-between px-3 md:px-4 panel-bg relative z-50">
       <div className="flex items-center gap-2 md:gap-3 min-w-0">
         {/* Logo */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <Link href="/" className="flex items-center gap-2 flex-shrink-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
           <div className="w-8 h-8 rounded-lg tofu-gradient flex items-center justify-center">
             <Bot className="w-4 h-4 text-primary-foreground" />
           </div>
           <span className="font-semibold text-foreground text-sm tracking-tight hidden sm:inline">tofuOS</span>
-        </div>
+        </Link>
 
         <div className="w-px h-6 bg-border mx-1 hidden sm:block" />
 
@@ -247,7 +248,12 @@ const TopBar = () => {
           <BarChart3 className="w-4 h-4" />
           Analytics
         </Link>
-        <button className="hidden md:flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-muted rounded-lg transition-colors">
+        <button
+          type="button"
+          onClick={() => toast.info("Share coming soon")}
+          className="hidden md:flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-muted rounded-lg transition-colors"
+          title="Share (coming soon)"
+        >
           <Share2 className="w-4 h-4" />
           Share
         </button>
@@ -266,6 +272,15 @@ const TopBar = () => {
           >
             <Settings className="w-4 h-4" />
           </Link>
+          <button
+            type="button"
+            onClick={signOut}
+            className="md:hidden p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
         <button
           onClick={signOut}

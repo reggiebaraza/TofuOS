@@ -99,7 +99,12 @@ const SourcesPanel = ({ mobile }: { mobile?: boolean }) => {
     <aside className={`${mobile ? "w-full h-full" : "w-72 min-w-[280px] border-r"} border-border flex flex-col panel-bg pb-safe`}>
       <div className="p-4 border-b border-border flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">Sources</h2>
-        <button className="p-1 rounded hover:bg-muted transition-colors">
+        <button
+          type="button"
+          className="p-1 rounded hover:bg-muted transition-colors"
+          aria-label="View options (coming soon)"
+          title="View options (coming soon)"
+        >
           <svg className="w-4 h-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         </button>
       </div>

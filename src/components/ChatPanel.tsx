@@ -56,9 +56,11 @@ const ChatPanel = () => {
     if (!currentProjectId) {
       setMessages([]);
       setInsights([]);
+      setAnalyzeError(null);
       setSelectedSourcesCount(0);
       return;
     }
+    setAnalyzeError(null);
     (async () => {
       const [msgList, insightList] = await Promise.all([
         getChatMessages(currentProjectId),
@@ -214,10 +216,20 @@ const ChatPanel = () => {
             <Sparkles className="w-4 h-4" />
             {analyzing ? "Analyzing…" : "Analyze sources"}
           </button>
-          <button className="p-2 rounded-lg hover:bg-muted transition-colors">
+          <button
+            type="button"
+            className="p-2 rounded-lg hover:bg-muted transition-colors"
+            aria-label="Filters (coming soon)"
+            title="Filters (coming soon)"
+          >
             <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
           </button>
-          <button className="p-2 rounded-lg hover:bg-muted transition-colors">
+          <button
+            type="button"
+            className="p-2 rounded-lg hover:bg-muted transition-colors"
+            aria-label="More options (coming soon)"
+            title="More options (coming soon)"
+          >
             <MoreVertical className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
@@ -253,6 +265,12 @@ const ChatPanel = () => {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        {messages.length === 0 && !isThinking && (
+          <div className="text-center py-8 text-muted-foreground text-sm max-w-sm mx-auto">
+            <p className="font-medium text-foreground mb-1">No messages yet</p>
+            <p>Add sources in the left panel, then ask a question here or run &quot;Analyze sources&quot; to get AI insights.</p>
+          </div>
+        )}
         {messages.map((msg, i) => (
           <div key={i}>
             {msg.role === "assistant" ? (
@@ -343,8 +361,10 @@ const ChatPanel = () => {
             {selectedSourcesCount} Source{selectedSourcesCount !== 1 ? "s" : ""}
           </span>
           <button
+            type="button"
             onClick={handleSend}
             className="p-1.5 rounded-lg tofu-gradient text-primary-foreground hover:opacity-90 transition-opacity"
+            aria-label="Send message"
           >
             <Send className="w-4 h-4" />
           </button>

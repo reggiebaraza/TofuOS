@@ -1,10 +1,13 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
   "/api/chat/route": "app/api/chat/route.js",
-  "/api/jira/create-issue/route": "app/api/jira/create-issue/route.js",
-  "/api/analyze/route": "app/api/analyze/route.js",
-  "/login/page": "app/login/page.js",
+  "/analytics/page": "app/analytics/page.js",
+  "/icon.svg/route": "app/icon.svg/route.js",
   "/signup/page": "app/signup/page.js",
+  "/settings/page": "app/settings/page.js",
+  "/api/jira/create-issue/route": "app/api/jira/create-issue/route.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
   "/api/studio/generate/route": "app/api/studio/generate/route.js",
-  "/page": "app/page.js"
+  "/api/analyze/route": "app/api/analyze/route.js"
 }

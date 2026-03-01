@@ -101,6 +101,10 @@ const Login = () => {
                         autoComplete="email"
                         disabled={isSubmitting}
                         {...field}
+                        onChange={(e) => {
+                          setSubmitError(null);
+                          field.onChange(e);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -120,6 +124,10 @@ const Login = () => {
                         autoComplete="current-password"
                         disabled={isSubmitting}
                         {...field}
+                        onChange={(e) => {
+                          setSubmitError(null);
+                          field.onChange(e);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
