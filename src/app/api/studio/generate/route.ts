@@ -3,6 +3,30 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from '@supabase/supabase-js';
 import { withGeminiRetry, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
 
+const MAX_CONTEXT_PER_SOURCE = 28000;
+const MAX_CONTEXT_TOTAL = 120000;
+
+function buildSourceContextWithContent(sources: { name: string; type: string; content?: string | null }[]): string {
+  let total = 0;
+  const parts: string[] = [];
+  for (const s of sources) {
+    const content = s.content?.trim();
+    const text = content
+      ? content.length > MAX_CONTEXT_PER_SOURCE
+        ? content.slice(0, MAX_CONTEXT_PER_SOURCE) + '\n\n[... truncated ...]'
+        : content
+      : '(No extracted text for this source.)';
+    const block = `--- Source: ${s.name} [${s.type}] ---\n${text}`;
+    if (total + block.length > MAX_CONTEXT_TOTAL) {
+      parts.push(block.slice(0, MAX_CONTEXT_TOTAL - total) + '\n\n[... more sources omitted ...]');
+      break;
+    }
+    parts.push(block);
+    total += block.length;
+  }
+  return parts.join('\n\n');
+}
+
 const DOCUMENT_PROMPTS: Record<string, string> = {
   prd: `Write a Product Requirements Document (PRD). Include: problem statement, goals, user personas, functional requirements, success metrics, and out-of-scope. Use the sources as evidence. Output in clear sections with headers.`,
   "coding-rules": `Create AI Coding Rules & Standards for the project. Include: code style, naming conventions, file structure, testing expectations, and any framework-specific rules. Base recommendations on the types of sources (e.g. app reviews, docs) where relevant.`,
@@ -46,13 +70,10 @@ export async function POST(req: Request) {
       const supabase = createClient(supabaseUrl, supabaseAnonKey);
       const { data: sources } = await supabase
         .from('sources')
-        .select('id, name, type, meta')
+        .select('id, name, type, meta, content')
         .in('id', sourceIds);
       if (sources && sources.length > 0) {
-        sourceContext = sources.map((s) => {
-          const metaStr = s.meta ? ` (meta: ${JSON.stringify(s.meta)})` : '';
-          return `- ${s.name} [${s.type}]${metaStr}`;
-        }).join('\n');
+        sourceContext = buildSourceContextWithContent(sources);
       }
     }
 
@@ -60,13 +81,13 @@ export async function POST(req: Request) {
     const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({ model: modelName });
 
-    const prompt = `You are a product and engineering assistant. The user has selected these real sources:
+    const prompt = `You are a product and engineering assistant. The user has selected these sources. Below is the actual content extracted from each source (where available). Use this content to generate the document.
 
 ${sourceContext}
 
 Task: ${instruction}
 
-Generate the full document. Use markdown for structure (headers, lists, code blocks where appropriate). Do not include meta-commentary like "here is the document"; just output the document.`;
+Generate the full document. Use markdown for structure (headers, lists, code blocks where appropriate). Base your output on the source content above. Do not include meta-commentary; just output the document.`;
 
     const content = await withGeminiRetry(async () => {
       const result = await model.generateContent(prompt);

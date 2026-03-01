@@ -3,6 +3,30 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from '@supabase/supabase-js';
 import { withGeminiRetry, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
 
+const MAX_CONTEXT_PER_SOURCE = 28000;
+const MAX_CONTEXT_TOTAL = 120000;
+
+function buildSourceContextWithContent(sources: { name: string; type: string; content?: string | null }[]): string {
+  let total = 0;
+  const parts: string[] = [];
+  for (const s of sources) {
+    const content = s.content?.trim();
+    const text = content
+      ? content.length > MAX_CONTEXT_PER_SOURCE
+        ? content.slice(0, MAX_CONTEXT_PER_SOURCE) + '\n\n[... truncated ...]'
+        : content
+      : '(No extracted text for this source.)';
+    const block = `--- Source: ${s.name} [${s.type}] ---\n${text}`;
+    if (total + block.length > MAX_CONTEXT_TOTAL) {
+      parts.push(block.slice(0, MAX_CONTEXT_TOTAL - total) + '\n\n[... more sources omitted ...]');
+      break;
+    }
+    parts.push(block);
+    total += block.length;
+  }
+  return parts.join('\n\n');
+}
+
 export async function POST(req: Request) {
   try {
     const { message, sourceIds, history, projectContext } = await req.json();
@@ -13,7 +37,6 @@ export async function POST(req: Request) {
 
     const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
     
-    // Require API key - no mock data
     if (!apiKey) {
       return NextResponse.json(
         { message: "GOOGLE_GEMINI_API_KEY is not set. Add your Gemini API key to enable chat." },
@@ -21,7 +44,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Fetch source details from Supabase for context
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
@@ -34,11 +56,12 @@ export async function POST(req: Request) {
       const supabase = createClient(supabaseUrl, supabaseAnonKey);
       const { data: sources } = await supabase
         .from('sources')
-        .select('name, type, meta')
+        .select('name, type, content')
         .in('id', sourceIds);
       
       if (sources && sources.length > 0) {
-        context += `The user has selected the following sources for this conversation:\n${sources.map(s => `- ${s.name} (${s.type})`).join('\n')}\n\nPlease use this context to answer questions accurately. If the user asks for details about these sources, use your knowledge as a product manager to provide insights based on their types and names.`;
+        const sourceContent = buildSourceContextWithContent(sources);
+        context += `The user has selected the following sources. Use the actual content below to answer accurately. If content is missing for a source, say so and use general PM knowledge only for that part.\n\n${sourceContent}`;
       }
     }
 

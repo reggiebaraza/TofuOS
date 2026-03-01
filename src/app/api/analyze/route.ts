@@ -3,6 +3,30 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from '@supabase/supabase-js';
 import { withGeminiRetry, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
 
+const MAX_CONTEXT_PER_SOURCE = 28000;  // chars per source to stay within context
+const MAX_CONTEXT_TOTAL = 120000;      // total chars across all sources
+
+function buildSourceContextWithContent(sources: { name: string; type: string; meta?: unknown; content?: string | null }[]): string {
+  let total = 0;
+  const parts: string[] = [];
+  for (const s of sources) {
+    const content = s.content?.trim();
+    const text = content
+      ? content.length > MAX_CONTEXT_PER_SOURCE
+        ? content.slice(0, MAX_CONTEXT_PER_SOURCE) + '\n\n[... truncated ...]'
+        : content
+      : '(No extracted text for this source. Add a PDF or text file to include its content.)';
+    const block = `--- Source: ${s.name} [${s.type}] ---\n${text}`;
+    if (total + block.length > MAX_CONTEXT_TOTAL) {
+      parts.push(block.slice(0, MAX_CONTEXT_TOTAL - total) + '\n\n[... more sources omitted for length ...]');
+      break;
+    }
+    parts.push(block);
+    total += block.length;
+  }
+  return parts.join('\n\n');
+}
+
 export async function POST(req: Request) {
   try {
     const { sourceIds } = await req.json();
@@ -21,7 +45,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Fetch real source details from Supabase for context
+    // Fetch source details and content from Supabase
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     let sourceContext = `Source IDs: ${sourceIds.join(', ')}.`;
@@ -30,13 +54,10 @@ export async function POST(req: Request) {
       const supabase = createClient(supabaseUrl, supabaseAnonKey);
       const { data: sources } = await supabase
         .from('sources')
-        .select('id, name, type, meta')
+        .select('id, name, type, meta, content')
         .in('id', sourceIds);
       if (sources && sources.length > 0) {
-        sourceContext = sources.map((s) => {
-          const metaStr = s.meta ? ` (meta: ${JSON.stringify(s.meta)})` : '';
-          return `- ${s.name} [${s.type}]${metaStr}`;
-        }).join('\n');
+        sourceContext = buildSourceContextWithContent(sources);
       }
     }
 
@@ -44,13 +65,13 @@ export async function POST(req: Request) {
     const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({ model: modelName });
 
-    const prompt = `You are a product management assistant. The user has selected the following real sources (customer interviews, reviews, documents):
+    const prompt = `You are a product management assistant. The user has selected the following sources. Below is the actual content extracted from each source (where available). Use this content to derive concrete, evidence-based insights.
 
 ${sourceContext}
 
-Generate 4 insights based on these sources. For each insight provide:
+Generate 4 insights based on the content above. For each insight provide:
 1. summary: one short sentence (concise, actionable, suitable as a ticket title).
-2. description: 1-3 sentences with more detail, data, or context (for use in ticket description).
+2. description: 1-3 sentences with more detail, citing specific evidence from the sources where possible.
 
 Return a valid JSON object with a single key 'insights' containing an array of 4 objects, each with keys "summary" and "description".
 Example: {"insights": [{"summary": "Short title", "description": "Longer detail here."}, ...]}`;

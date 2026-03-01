@@ -25,7 +25,7 @@ export interface AddSourcesModalProps {
   onAddDocuments?: (files: File[]) => void | Promise<void>;
 }
 
-const ACCEPT_DOCUMENTS = ".pdf,.doc,.docx,.xls,.xlsx";
+const ACCEPT_DOCUMENTS = ".pdf,.txt,.doc,.docx,.xls,.xlsx";
 
 const AddSourcesModal = ({
   open,
@@ -74,6 +74,7 @@ const AddSourcesModal = ({
     const valid = files.filter(
       (f) =>
         f.name.endsWith(".pdf") ||
+        f.name.endsWith(".txt") ||
         f.name.endsWith(".doc") ||
         f.name.endsWith(".docx") ||
         f.name.endsWith(".xls") ||
@@ -192,7 +193,7 @@ const AddSourcesModal = ({
 
           <TabsContent value="documents" className="space-y-4 mt-4">
             <p className="text-sm text-muted-foreground">
-              Upload Word (.doc, .docx), PDF, or Excel (.xls, .xlsx) files.
+              Upload PDF, text (.txt), Word (.doc, .docx), or Excel (.xls, .xlsx) files. PDF and .txt content will be read by the AI.
             </p>
             <div className="space-y-2">
               <Label>Files</Label>
@@ -210,7 +211,7 @@ const AddSourcesModal = ({
                 className="w-full border-dashed"
                 onClick={() => fileInputRef.current?.click()}
               >
-                Choose Word, PDF, or Excel files
+                Choose PDF, text, Word, or Excel files
               </Button>
               {documentFiles.length > 0 && (
                 <ul className="text-sm space-y-1 mt-2">

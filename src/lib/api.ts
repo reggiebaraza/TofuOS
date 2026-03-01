@@ -76,6 +76,7 @@ export interface Source {
   selected: boolean;
   project_id?: string;
   created_at?: string;
+  content?: string | null;
   meta?: { store?: "play" | "apple"; url?: string; fileId?: string };
   user_id?: string;
 }
@@ -150,24 +151,31 @@ export async function addDocumentSources(
   projectId: string,
   files: File[]
 ): Promise<Source[]> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Not authenticated");
 
-  const newSources = files.map((file) => ({
-    name: file.name,
-    type: file.name.toLowerCase().endsWith(".pdf") ? "pdf" : "document",
+  const formData = new FormData();
+  formData.set("projectId", projectId);
+  files.forEach((file) => formData.append("files", file));
+
+  const response = await fetch("/api/sources/upload-documents", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${session.access_token}` },
+    body: formData,
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || "Failed to upload documents");
+  }
+  const data = await response.json();
+  return Array.isArray(data) ? data.map((row: { id: string; name: string; type: string; content?: string | null }) => ({
+    id: row.id,
+    name: row.name,
+    type: row.type as Source["type"],
     selected: true,
     project_id: projectId,
-    user_id: user.id
-  }));
-
-  const { data, error } = await supabase
-    .from('sources')
-    .insert(newSources)
-    .select();
-
-  if (error) throw error;
-  return data as Source[];
+    content: row.content ?? null,
+  })) : [];
 }
 
 // --- Project insights (stored per project) ---
