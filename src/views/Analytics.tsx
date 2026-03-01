@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
-import { BarChart3, ChevronLeft, FolderOpen, FileText, MessageSquare, Sparkles, ExternalLink } from "lucide-react";
+import { BarChart3, ChevronLeft, FolderOpen, FileText, MessageSquare, Sparkles, ExternalLink, AlertCircle, Printer } from "lucide-react";
 
 export interface ProjectStats {
   project: Project;
@@ -103,6 +103,13 @@ const Analytics = () => {
   const totalSources = stats.reduce((s, x) => s + x.sourcesCount, 0);
   const totalInsights = stats.reduce((s, x) => s + x.insightsCount, 0);
   const totalMessages = stats.reduce((s, x) => s + x.messagesCount, 0);
+  const needsAttention = stats.filter(
+    (s) => s.sourcesCount > 0 && (s.insightsCount === 0 || s.exports.length === 0)
+  );
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   const chartData = stats
     .slice(0, 10)
@@ -114,18 +121,24 @@ const Analytics = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b border-border panel-bg">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/" className="rounded-lg">
-              <ChevronLeft className="w-5 h-5" />
-              <span className="sr-only">Back</span>
-            </Link>
+      <div className="border-b border-border panel-bg print:border-0">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" asChild className="print:hidden">
+              <Link href="/" className="rounded-lg">
+                <ChevronLeft className="w-5 h-5" />
+                <span className="sr-only">Back</span>
+              </Link>
+            </Button>
+            <h1 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              Analytics
+            </h1>
+          </div>
+          <Button variant="outline" size="sm" onClick={handlePrint} className="print:hidden flex items-center gap-2">
+            <Printer className="w-4 h-4" />
+            Print / Save as PDF
           </Button>
-          <h1 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <BarChart3 className="w-5 h-5" />
-            Analytics
-          </h1>
         </div>
       </div>
 
@@ -135,6 +148,36 @@ const Analytics = () => {
             {error}
           </div>
         )}
+        {/* Needs attention */}
+        {!loading && needsAttention.length > 0 && (
+          <Card className="border-amber-500/30 bg-amber-500/5">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600" />
+                Needs attention
+              </CardTitle>
+              <CardDescription>
+                Projects with sources but no insights yet or no Jira exports
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {needsAttention.map(({ project, sourcesCount, insightsCount, exports }) => (
+                  <li key={project.id} className="text-sm flex items-center gap-2">
+                    <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="font-medium">{project.name}</span>
+                    <span className="text-muted-foreground">
+                      — {sourcesCount} source{sourcesCount !== 1 ? "s" : ""}
+                      {insightsCount === 0 && " · Run Analyze in Chat"}
+                      {insightsCount > 0 && exports.length === 0 && " · No Jira exports yet"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="border-border">
@@ -269,7 +312,7 @@ const Analytics = () => {
                 Exported to Jira
               </CardTitle>
               <CardDescription>
-                Tickets created from insights, grouped by project
+                Tickets created from insights, grouped by project. Links open in Jira; this list is for reference only.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">

@@ -8,6 +8,7 @@ export interface Project {
   id: string;
   user_id: string;
   name: string;
+  summary?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -43,10 +44,14 @@ export async function createProject(name: string = 'Untitled Project'): Promise<
   return data as Project;
 }
 
-export async function updateProject(id: string, name: string): Promise<Project> {
+export async function updateProject(id: string, updates: { name?: string; summary?: string | null }): Promise<Project> {
   const { data, error } = await supabase
     .from('projects')
-    .update({ name, updated_at: new Date().toISOString() })
+    .update({
+      ...(updates.name !== undefined && { name: updates.name }),
+      ...(updates.summary !== undefined && { summary: updates.summary }),
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', id)
     .select()
     .single();
@@ -70,6 +75,7 @@ export interface Source {
   type: "pdf" | "link" | "transcript" | "reviews" | "document";
   selected: boolean;
   project_id?: string;
+  created_at?: string;
   meta?: { store?: "play" | "apple"; url?: string; fileId?: string };
   user_id?: string;
 }
@@ -93,9 +99,12 @@ export async function fetchSources(projectId: string | null): Promise<Source[]> 
 }
 
 // --- Analyze (AI PM insights) ---
+export type InsightStatus = "not_started" | "in_progress" | "done";
+
 export interface InsightItem {
   summary: string;
   description: string;
+  status?: InsightStatus;
 }
 
 export async function updateSources(sources: Source[]): Promise<Source[]> {
@@ -172,13 +181,23 @@ export async function getProjectInsights(projectId: string | null): Promise<Insi
     .single();
 
   if (error || !data?.insights) return [];
-  return Array.isArray(data.insights) ? (data.insights as InsightItem[]) : [];
+  const raw = Array.isArray(data.insights) ? data.insights : [];
+  return raw.map((item: { summary?: string; description?: string; status?: InsightStatus }) => ({
+    summary: item.summary ?? "",
+    description: item.description ?? "",
+    status: (item.status as InsightStatus) ?? "not_started",
+  }));
 }
 
 export async function saveProjectInsights(projectId: string, insights: InsightItem[]): Promise<void> {
+  const normalized = insights.map((i) => ({
+    summary: i.summary,
+    description: i.description,
+    status: i.status ?? "not_started",
+  }));
   const { error } = await supabase
     .from('project_insights')
-    .upsert({ project_id: projectId, insights, updated_at: new Date().toISOString() }, { onConflict: 'project_id' });
+    .upsert({ project_id: projectId, insights: normalized, updated_at: new Date().toISOString() }, { onConflict: 'project_id' });
 
   if (error) throw error;
 }
@@ -220,7 +239,7 @@ export async function appendChatMessage(
 }
 
 // --- Analyze (AI PM insights) ---
-export async function analyzeSources(sourceIds: string[]): Promise<{ insights: InsightItem[] }> {
+export async function analyzeSources(sourceIds: string[]): Promise<{ insights: InsightItem[]; suggestedPrompts?: string[] }> {
   const response = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -237,14 +256,15 @@ export async function analyzeSources(sourceIds: string[]): Promise<{ insights: I
 
 // --- Conversational Chat with AI ---
 export async function chatWithAI(
-  message: string, 
-  sourceIds: string[], 
-  history: { role: "user" | "assistant"; content: string }[]
+  message: string,
+  sourceIds: string[],
+  history: { role: "user" | "assistant"; content: string }[],
+  projectContext?: string | null
 ): Promise<{ content: string }> {
   const response = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, sourceIds, history }),
+    body: JSON.stringify({ message, sourceIds, history, projectContext: projectContext ?? undefined }),
   });
 
   if (!response.ok) {
@@ -253,6 +273,27 @@ export async function chatWithAI(
   }
 
   return response.json();
+}
+
+// --- Search within a project (sources + chat + insights) ---
+export async function searchProject(
+  projectId: string | null,
+  query: string
+): Promise<{ sources: Source[]; messages: ChatMessage[]; insights: InsightItem[] }> {
+  if (!projectId || !query.trim()) {
+    return { sources: [], messages: [], insights: [] };
+  }
+  const q = query.trim().toLowerCase();
+  const [sources, messages, insights] = await Promise.all([
+    fetchSources(projectId),
+    getChatMessages(projectId),
+    getProjectInsights(projectId),
+  ]);
+  return {
+    sources: sources.filter((s) => s.name.toLowerCase().includes(q)),
+    messages: messages.filter((m) => m.content.toLowerCase().includes(q)),
+    insights: insights.filter((i) => i.summary.toLowerCase().includes(q) || i.description.toLowerCase().includes(q)),
+  };
 }
 
 // --- Studio (document generation) ---

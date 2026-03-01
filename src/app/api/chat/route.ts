@@ -5,7 +5,7 @@ import { withGeminiRetry, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
 
 export async function POST(req: Request) {
   try {
-    const { message, sourceIds, history } = await req.json();
+    const { message, sourceIds, history, projectContext } = await req.json();
 
     if (!message) {
       return NextResponse.json({ message: 'Message is required' }, { status: 400 });
@@ -26,6 +26,9 @@ export async function POST(req: Request) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
     let context = "No specific sources selected.";
+    if (projectContext && typeof projectContext === 'string' && projectContext.trim()) {
+      context = `Project context (use this to align answers): ${projectContext.trim()}\n\n`;
+    }
 
     if (supabaseUrl && supabaseAnonKey && sourceIds && sourceIds.length > 0) {
       const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -35,7 +38,7 @@ export async function POST(req: Request) {
         .in('id', sourceIds);
       
       if (sources && sources.length > 0) {
-        context = `The user has selected the following sources for this conversation:\n${sources.map(s => `- ${s.name} (${s.type})`).join('\n')}\n\nPlease use this context to answer questions accurately. If the user asks for details about these sources, use your knowledge as a product manager to provide insights based on their types and names.`;
+        context += `The user has selected the following sources for this conversation:\n${sources.map(s => `- ${s.name} (${s.type})`).join('\n')}\n\nPlease use this context to answer questions accurately. If the user asks for details about these sources, use your knowledge as a product manager to provide insights based on their types and names.`;
       }
     }
 

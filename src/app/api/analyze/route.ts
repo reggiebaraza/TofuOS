@@ -63,7 +63,11 @@ Example: {"insights": [{"summary": "Short title", "description": "Longer detail 
       return JSON.parse(cleanedText);
     });
 
-    return NextResponse.json(data);
+    const suggestedPrompts = [
+      "Prioritise these insights and suggest what to build first.",
+      "Turn the first insight into a short PRD outline.",
+    ];
+    return NextResponse.json({ ...data, suggestedPrompts });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     const isQuota = message.includes("429") || message.includes("quota") || message.includes("Too Many Requests") || message.includes("Quota exceeded");

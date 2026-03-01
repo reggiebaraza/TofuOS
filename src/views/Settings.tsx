@@ -26,6 +26,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +62,7 @@ const Settings = () => {
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [editingSummary, setEditingSummary] = useState("");
   const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -85,15 +87,20 @@ const Settings = () => {
   const handleStartRename = (proj: Project) => {
     setEditingProjectId(proj.id);
     setEditingName(proj.name);
+    setEditingSummary(proj.summary ?? "");
   };
 
   const handleSaveRename = async () => {
     if (!editingProjectId || !editingName.trim()) return;
     setSaving(true);
     try {
-      await updateProject(editingProjectId, editingName.trim());
+      await updateProject(editingProjectId, {
+        name: editingName.trim(),
+        summary: editingSummary.trim() || null,
+      });
       setEditingProjectId(null);
       setEditingName("");
+      setEditingSummary("");
       loadProjects();
     } finally {
       setSaving(false);
@@ -103,6 +110,7 @@ const Settings = () => {
   const handleCancelRename = () => {
     setEditingProjectId(null);
     setEditingName("");
+    setEditingSummary("");
   };
 
   const handleConfirmDelete = async () => {
@@ -306,30 +314,45 @@ const Settings = () => {
                     className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/20"
                   >
                     {editingProjectId === proj.id ? (
-                      <>
+                      <div className="flex flex-col gap-2 w-full">
                         <Input
                           value={editingName}
                           onChange={(e) => setEditingName(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveRename();
+                            if (e.key === "Enter" && !e.shiftKey) handleSaveRename();
                             if (e.key === "Escape") handleCancelRename();
                           }}
-                          className="flex-1 h-8"
+                          className="w-full h-8"
                           placeholder="Project name"
                           autoFocus
                         />
-                        <Button size="sm" onClick={handleSaveRename} disabled={saving}>
-                          Save
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={handleCancelRename}>
-                          Cancel
-                        </Button>
-                      </>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Project context (optional)</Label>
+                          <Textarea
+                            value={editingSummary}
+                            onChange={(e) => setEditingSummary(e.target.value)}
+                            placeholder="e.g. Q1 discovery – 5 user interviews, focus on onboarding"
+                            rows={2}
+                            className="resize-y text-sm"
+                          />
+                        </div>
+                        <div className="flex gap-1">
+                          <Button size="sm" onClick={handleSaveRename} disabled={saving}>
+                            Save
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={handleCancelRename}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
                     ) : (
                       <>
-                        <span className="flex-1 text-sm font-medium text-foreground truncate">
-                          {proj.name}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-foreground truncate block">{proj.name}</span>
+                          {proj.summary && (
+                            <span className="text-xs text-muted-foreground truncate block">{proj.summary}</span>
+                          )}
+                        </div>
                         {currentProjectId === proj.id && (
                           <span className="text-xs text-muted-foreground shrink-0">Current</span>
                         )}

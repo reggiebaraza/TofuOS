@@ -72,7 +72,7 @@ const TopBar = () => {
     if (!renameProject || !renameValue.trim()) return;
     setSaving(true);
     try {
-      await updateProject(renameProject.id, renameValue.trim());
+      await updateProject(renameProject.id, { name: renameValue.trim() });
       setRenameProject(null);
       setRenameValue("");
       await refreshProjects();

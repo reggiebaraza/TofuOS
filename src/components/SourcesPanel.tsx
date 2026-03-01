@@ -2,6 +2,7 @@
 
 import { Plus, Search, FileText, Link, Star, FileSpreadsheet } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
+import { formatDistanceToNow } from "date-fns";
 import AddSourcesModal from "@/components/AddSourcesModal";
 import type { StoreType } from "@/components/AddSourcesModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -169,7 +170,13 @@ const SourcesPanel = ({ mobile }: { mobile?: boolean }) => {
                 {source.selected && <svg className="w-3 h-3 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
               </div>
               {iconForType(source.type)}
-              <span className="text-sm truncate text-foreground">{source.name}</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm truncate text-foreground block">{source.name}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {source.type}
+                  {source.created_at && ` · ${formatDistanceToNow(new Date(source.created_at), { addSuffix: true })}`}
+                </span>
+              </div>
             </div>
           )))}
       </div>
