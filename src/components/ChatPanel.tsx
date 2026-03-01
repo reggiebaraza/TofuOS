@@ -15,6 +15,7 @@ import {
   searchProject,
 } from "@/lib/api";
 import type { InsightItem, InsightStatus, Source, ChatMessage } from "@/lib/api";
+import { useProject } from "@/contexts/ProjectContext";
 import JiraConfigModal from "@/components/JiraConfigModal";
 import CreateJiraModal from "@/components/CreateJiraModal";
 import {
