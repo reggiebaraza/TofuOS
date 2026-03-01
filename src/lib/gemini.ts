@@ -7,11 +7,10 @@ import type { GoogleGenerativeAI } from "@google/generative-ai";
 const RATE_LIMIT_RETRY_DELAY_MS = 30_000; // 30 seconds
 const MAX_RETRIES = 1;
 
-/** Default model list: primary first, then fallbacks (separate quotas per model). Use IDs supported by v1beta. */
+/** Default model list: primary first, then fallbacks (separate quotas per model). Only IDs supported by v1beta generateContent. */
 export const GEMINI_FALLBACK_MODELS = [
   "gemini-2.5-flash",
   "gemini-2.0-flash",
-  "gemini-1.5-flash-001", // v1beta uses versioned ID, not "gemini-1.5-flash"
 ] as const;
 
 export function getGeminiModelList(): string[] {
