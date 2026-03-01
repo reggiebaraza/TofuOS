@@ -13,7 +13,6 @@ import {
   getChatMessages,
   appendChatMessage,
   getExportedJiraTickets,
-  saveExportedJiraTicket,
   deleteExportedJiraTicket,
 } from "@/lib/api";
 import type { InsightItem, ExportedJiraTicket } from "@/lib/api";
@@ -143,13 +142,12 @@ const ChatPanel = () => {
   const handleJiraCreated = useCallback(
     async (url: string, issueKey: string, summary: string) => {
       if (!currentProjectId) return;
-      try {
-        await saveExportedJiraTicket(currentProjectId, { summary, jira_key: issueKey, jira_url: url });
-        const tickets = await getExportedJiraTickets(currentProjectId);
-        setExportedTickets(tickets);
-      } catch (e) {
-        toast.error("Failed to save export record");
-      }
+      setLastProjectKey((prev) => issueKey.split("-")[0] || prev);
+      getJiraConfig().then((c) => {
+        if (c?.lastProjectKey) setLastProjectKey(c.lastProjectKey);
+      });
+      const tickets = await getExportedJiraTickets(currentProjectId);
+      setExportedTickets(tickets);
     },
     [currentProjectId]
   );
@@ -341,10 +339,13 @@ const ChatPanel = () => {
           </ul>
         </div>
       )}
-      {/* Exported to Jira (under Analysis) */}
-      {exportedTickets.length > 0 && (
+      {/* Exported to Jira (under Analysis) - show when we have insights or any exports */}
+      {(insights.length > 0 || exportedTickets.length > 0) && (
         <div className="px-3 sm:px-6 py-4 border-b border-border bg-muted/20 flex-shrink-0">
           <h3 className="text-sm font-medium text-foreground mb-3">Exported to Jira</h3>
+          {exportedTickets.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No tickets exported yet. Use &quot;Export to Jira&quot; on an insight above.</p>
+          ) : (
           <ul className="space-y-2">
             {exportedTickets.map((t) => (
               <li
@@ -391,6 +392,7 @@ const ChatPanel = () => {
               </li>
             ))}
           </ul>
+          )}
         </div>
       )}
       {analyzeError && (
@@ -519,6 +521,7 @@ const ChatPanel = () => {
         onOpenChange={setCreateJiraModalOpen}
         insight={createJiraInsight}
         initialProjectKey={lastProjectKey}
+        projectId={currentProjectId}
         onCreated={(url, issueKey, summary) => {
           setLastProjectKey(issueKey.split("-")[0] || lastProjectKey);
           handleJiraCreated(url, issueKey, summary);

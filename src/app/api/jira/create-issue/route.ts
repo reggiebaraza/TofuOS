@@ -99,16 +99,34 @@ export async function POST(req: Request) {
     }
 
     const jiraResult = await response.json();
+    const issueUrl = `https://${domain}/browse/${jiraResult.key}`;
 
     await supabase
       .from('jira_configs')
       .update({ last_project_key: projectKey })
       .eq('user_id', user.id);
 
+    // Save to project exports list when projectId provided (so it appears under Analysis)
+    const projectId = params.projectId;
+    if (projectId && typeof projectId === 'string' && projectId.trim()) {
+      const { error: insertError } = await supabase
+        .from('project_jira_exports')
+        .insert({
+          project_id: projectId.trim(),
+          summary: params.summary || jiraResult.key,
+          jira_key: jiraResult.key,
+          jira_url: issueUrl,
+        });
+      if (insertError) {
+        console.error('Failed to save export record:', insertError);
+        // Still return success for the issue creation; client can retry or show list on next load
+      }
+    }
+
     return NextResponse.json({
       key: jiraResult.key,
       id: jiraResult.id,
-      url: `https://${domain}/browse/${jiraResult.key}`
+      url: issueUrl
     });
   } catch (error: any) {
     console.error('Server Error:', error);

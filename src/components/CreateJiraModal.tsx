@@ -19,6 +19,7 @@ interface CreateJiraModalProps {
   onOpenChange: (open: boolean) => void;
   insight: { summary: string; description: string } | null;
   initialProjectKey?: string;
+  projectId?: string | null;
   onCreated?: (url: string, issueKey: string, summary: string) => void;
 }
 
@@ -27,6 +28,7 @@ export default function CreateJiraModal({
   onOpenChange,
   insight,
   initialProjectKey = "",
+  projectId,
   onCreated,
 }: CreateJiraModalProps) {
   const [summary, setSummary] = useState(insight?.summary ?? "");
@@ -81,6 +83,7 @@ export default function CreateJiraModal({
         description: descriptionVal || summaryVal,
         projectKey: projectVal,
         issueType: issueType.trim() || undefined,
+        projectId: projectId ?? undefined,
       });
       setCreatedUrl(result.url);
       onCreated?.(result.url, result.key, summaryVal);

@@ -327,6 +327,7 @@ export async function createJiraIssue(params: {
   description?: string;
   projectKey?: string;
   issueType?: string;
+  projectId?: string;
 }): Promise<{ key: string; id: string; url: string }> {
   // Pass the access token to the server route
   const { data: { session } } = await supabase.auth.getSession();

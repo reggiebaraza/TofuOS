@@ -14,4 +14,5 @@ alter table public.project_jira_exports enable row level security;
 
 drop policy if exists "Users can manage project_jira_exports for own projects" on public.project_jira_exports;
 create policy "Users can manage project_jira_exports for own projects" on public.project_jira_exports for all
-  using (exists (select 1 from public.projects p where p.id = project_jira_exports.project_id and p.user_id = auth.uid()));
+  using (exists (select 1 from public.projects p where p.id = project_jira_exports.project_id and p.user_id = auth.uid()))
+  with check (exists (select 1 from public.projects p where p.id = project_jira_exports.project_id and p.user_id = auth.uid()));
