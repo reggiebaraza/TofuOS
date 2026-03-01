@@ -1,8 +1,19 @@
 import Link from "next/link";
-import { Plus, BarChart3, Share2, Settings, ChevronDown, LogOut, FolderOpen } from "lucide-react";
+import { Plus, BarChart3, Share2, Settings, ChevronDown, LogOut, FolderOpen, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
+import { updateProject, deleteProject, type Project } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const TopBar = () => {
   const { user, signOut } = useAuth();
@@ -16,6 +27,11 @@ const TopBar = () => {
   } = useProject();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [renameProject, setRenameProject] = useState<Project | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleNewProject = async () => {
     setDropdownOpen(false);
@@ -31,6 +47,48 @@ const TopBar = () => {
   const handleSelectProject = (id: string) => {
     setCurrentProjectId(id);
     setDropdownOpen(false);
+  };
+
+  const openRename = (proj: Project, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDropdownOpen(false);
+    setRenameProject(proj);
+    setRenameValue(proj.name);
+  };
+
+  const handleSaveRename = async () => {
+    if (!renameProject || !renameValue.trim()) return;
+    setSaving(true);
+    try {
+      await updateProject(renameProject.id, renameValue.trim());
+      setRenameProject(null);
+      setRenameValue("");
+      await refreshProjects();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDropdownOpen(false);
+    setDeleteProjectId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteProjectId) return;
+    setDeleting(true);
+    try {
+      await deleteProject(deleteProjectId);
+      if (currentProject?.id === deleteProjectId) {
+        const remaining = projects.filter((p) => p.id !== deleteProjectId);
+        setCurrentProjectId(remaining[0]?.id ?? null);
+      }
+      setDeleteProjectId(null);
+      await refreshProjects();
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -65,21 +123,47 @@ const TopBar = () => {
               <div className="fixed inset-0" onClick={() => setDropdownOpen(false)} aria-hidden />
               <div className="absolute top-full left-0 mt-1 w-72 panel-bg border border-border rounded-xl shadow-lg py-1 max-h-80 overflow-y-auto z-50">
                 {projects.map((proj) => (
-                  <button
+                  <div
                     key={proj.id}
-                    type="button"
-                    onClick={() => handleSelectProject(proj.id)}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2 ${
-                      currentProject?.id === proj.id ? "text-foreground font-medium bg-muted/50" : "text-muted-foreground"
+                    className={`flex items-center gap-1 group px-2 py-1 ${
+                      currentProject?.id === proj.id ? "bg-muted/50" : ""
                     }`}
                   >
-                    {currentProject?.id === proj.id ? (
-                      <svg className="w-4 h-4 text-primary flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                    ) : (
-                      <span className="w-4" />
-                    )}
-                    <span className="truncate">{proj.name}</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectProject(proj.id)}
+                      className={`flex-1 min-w-0 text-left px-2 py-2 text-sm hover:bg-muted rounded-md transition-colors flex items-center gap-2 ${
+                        currentProject?.id === proj.id ? "text-foreground font-medium" : "text-muted-foreground"
+                      }`}
+                    >
+                      {currentProject?.id === proj.id ? (
+                        <svg className="w-4 h-4 text-primary flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      ) : (
+                        <span className="w-4" />
+                      )}
+                      <span className="truncate">{proj.name}</span>
+                    </button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => openRename(proj, e)}
+                      title="Rename"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => openDelete(proj.id, e)}
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 ))}
                 <div className="border-t border-border mt-1 pt-1">
                   <button
@@ -97,6 +181,57 @@ const TopBar = () => {
           )}
         </div>
       </div>
+
+      {/* Rename project dialog */}
+      <Dialog open={!!renameProject} onOpenChange={(open) => !open && setRenameProject(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename project</DialogTitle>
+            <DialogDescription>Enter a new name for this project.</DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveRename();
+                if (e.key === "Escape") setRenameProject(null);
+              }}
+              placeholder="Project name"
+              className="w-full"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameProject(null)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveRename} disabled={saving || !renameValue.trim()}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete project confirmation */}
+      <Dialog open={!!deleteProjectId} onOpenChange={(open) => !open && setDeleteProjectId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete project</DialogTitle>
+            <DialogDescription>
+              This will permanently delete this project and all its sources, chat messages, and insights. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteProjectId(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleting}>
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex items-center gap-1 flex-shrink-0">
         <button className="hidden md:flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-muted rounded-lg transition-colors">
