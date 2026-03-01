@@ -43,7 +43,6 @@ import {
   ChevronLeft,
   CheckCircle,
   XCircle,
-  Sparkles,
   Info,
   FolderOpen,
   Pencil,
@@ -257,35 +256,6 @@ const Settings = () => {
                   >
                     {jiraConfig?.configured ? "Reconfigure" : "Configure"}
                   </Button>
-                </div>
-              </div>
-            </div>
-
-            <Separator className="bg-border" />
-
-            {/* Gemini */}
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <Sparkles className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">AI (Gemini)</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Chat, insights, and Studio use Google Gemini. Set{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
-                      GOOGLE_GEMINI_API_KEY
-                    </code>{" "}
-                    in your environment: <code className="rounded bg-muted px-1 py-0.5 text-[11px]">.env.local</code> for
-                    local dev, or in Vercel Project Settings → Environment Variables for production.
-                  </p>
-                  <a
-                    href="https://ai.google.dev/gemini-api/docs/api-key"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
-                  >
-                    Get an API key
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
                 </div>
               </div>
             </div>
