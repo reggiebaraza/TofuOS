@@ -11,15 +11,21 @@ function truncate(text: string, max: number): string {
 }
 
 /**
- * Sanitize extracted text before storing it.
- *
- * We escape all backslashes so there are no raw `\uXXXX` sequences that could
- * be interpreted as Unicode escapes by downstream systems (e.g. Postgres /
- * JSON parsers) and cause "unsupported Unicode escape sequence" errors.
+ * Sanitize extracted text before storing.
+ * Remove backslashes so no \u sequence can be interpreted as a Unicode escape
+ * (avoids "unsupported Unicode escape sequence" in parsers/DB).
  */
 function sanitizeExtractedText(s: string): string {
   if (typeof s !== "string" || !s.length) return s;
-  return s.replace(/\\/g, "\\\\");
+  return s.replace(/\\/g, "");
+}
+
+/** Ensure string is safe to send to DB/JSON (no invalid surrogates or control chars). */
+function safeForDb(s: string | null): string | null {
+  if (s == null || typeof s !== "string") return s;
+  const noControl = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, " ");
+  const noBadSurrogates = noControl.replace(/[\uD800-\uDFFF]/g, "");
+  return noBadSurrogates;
 }
 
 export async function POST(req: Request) {
@@ -64,11 +70,26 @@ export async function POST(req: Request) {
 
       try {
         if (lower.endsWith('.pdf')) {
-          const { getDocumentProxy, extractText } = await import('unpdf');
           const arrayBuffer = await file.arrayBuffer();
-          const pdf = await getDocumentProxy(new Uint8Array(arrayBuffer));
-          const { text: rawText } = await extractText(pdf, { mergePages: true });
-          const cleaned = rawText ? sanitizeExtractedText(String(rawText).trim()) : '';
+          const buffer = Buffer.from(arrayBuffer);
+          let rawText: string | null = null;
+
+          try {
+            const pdfParse = (await import('pdf-parse')).default;
+            const data = await pdfParse(buffer);
+            rawText = data?.text ? String(data.text).trim() : null;
+          } catch (_err) {
+            try {
+              const { getDocumentProxy, extractText } = await import('unpdf');
+              const pdf = await getDocumentProxy(new Uint8Array(arrayBuffer));
+              const out = await extractText(pdf, { mergePages: true });
+              rawText = out?.text ? String(out.text).trim() : null;
+            } catch (_unpdfErr) {
+              rawText = null;
+            }
+          }
+
+          const cleaned = rawText ? sanitizeExtractedText(rawText) : '';
           content = cleaned ? truncate(cleaned, MAX_PER_SOURCE) : null;
           if (!content) console.warn('[upload-documents] PDF produced no text:', name);
         } else if (lower.endsWith('.txt') || file.type === 'text/plain') {
@@ -78,13 +99,8 @@ export async function POST(req: Request) {
         // .doc, .docx, .xls, .xlsx: no extraction for now; source is still created with content null
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : String(e);
-        if (errMsg.includes('Unicode escape') || errMsg.includes('unicode escape')) {
-          console.warn('[upload-documents] PDF parse skipped (Unicode escape issue):', name);
-          content = null;
-        } else {
-          console.error('Extract error for', name, e);
-          content = null;
-        }
+        console.warn('[upload-documents] Extract error for', name, errMsg);
+        content = null;
       }
 
       const type = lower.endsWith('.pdf') ? 'pdf' : 'document';
@@ -96,7 +112,7 @@ export async function POST(req: Request) {
           selected: true,
           project_id: projectId.trim(),
           user_id: user.id,
-          content,
+          content: safeForDb(content),
         })
         .select('id, name, type, content')
         .single();
