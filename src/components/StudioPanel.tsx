@@ -35,6 +35,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface StudioItem {
   id: string;
@@ -67,11 +73,9 @@ const StudioPanel = ({ mobile }: { mobile?: boolean }) => {
   const [insightsModalOpen, setInsightsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingLabel, setLoadingLabel] = useState("");
-  const [outputContent, setOutputContent] = useState("");
-  const [outputLabel, setOutputLabel] = useState("");
-  const [outputType, setOutputType] = useState<string | null>(null);
   const [documents, setDocuments] = useState<StudioDocumentItem[]>([]);
-  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [documentModalDoc, setDocumentModalDoc] = useState<StudioDocumentItem | null>(null);
+  const [modalContent, setModalContent] = useState("");
 
   const loadDocuments = useCallback(async () => {
     if (!currentProjectId) {
@@ -118,7 +122,6 @@ const StudioPanel = ({ mobile }: { mobile?: boolean }) => {
       setError(null);
       setLoading(true);
       setLoadingLabel(studioItems.find((i) => i.id === documentType)?.label ?? documentType);
-      setOutputType(documentType);
       try {
         const { content } = await generateStudioDocument(documentType, selectedSourceIds);
         const label = studioItems.find((i) => i.id === documentType)?.label ?? documentType;
@@ -132,14 +135,14 @@ const StudioPanel = ({ mobile }: { mobile?: boolean }) => {
           setOutputContent(content);
           setOutputLabel(label);
           setDocuments((prev) => [saved, ...prev]);
-          setSelectedDocId(saved.id);
+          setDocumentModalDoc(saved);
+          setModalContent(saved.content);
         } else {
-          setOutputContent(content);
-          setOutputLabel(label);
+          setDocumentModalDoc(null);
+          setModalContent("");
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Generation failed");
-        setOutputContent("");
       } finally {
         setLoading(false);
       }
@@ -157,39 +160,55 @@ const StudioPanel = ({ mobile }: { mobile?: boolean }) => {
     runDocumentGeneration(item.id);
   };
 
-  const handleRegenerateDocument = useCallback(() => {
-    if (outputType) runDocumentGeneration(outputType);
-  }, [outputType, runDocumentGeneration]);
-
   const handleOpenDocument = (doc: StudioDocumentItem) => {
-    setSelectedDocId(doc.id);
-    setOutputContent(doc.content);
-    setOutputLabel(doc.label);
-    setOutputType(doc.document_type);
+    setDocumentModalDoc(doc);
+    setModalContent(doc.content);
   };
 
-  const handleSaveCurrentDocument = useCallback(async () => {
-    if (!selectedDocId || outputContent === undefined) return;
+  const handleCloseDocumentModal = () => {
+    setDocumentModalDoc(null);
+    setModalContent("");
+  };
+
+  const handleSaveModalDocument = useCallback(async () => {
+    if (!documentModalDoc) return;
     try {
-      await updateStudioDocument(selectedDocId, outputContent);
+      await updateStudioDocument(documentModalDoc.id, modalContent);
       setDocuments((prev) =>
-        prev.map((d) => (d.id === selectedDocId ? { ...d, content: outputContent } : d))
+        prev.map((d) => (d.id === documentModalDoc.id ? { ...d, content: modalContent } : d))
       );
+      setDocumentModalDoc((prev) => (prev ? { ...prev, content: modalContent } : null));
+      toast.success("Saved");
     } catch {
       toast.error("Failed to save");
     }
-  }, [selectedDocId, outputContent]);
+  }, [documentModalDoc, modalContent]);
+
+  const handleRegenerateModalDocument = useCallback(async () => {
+    if (!documentModalDoc || !currentProjectId) return;
+    setLoading(true);
+    setLoadingLabel(documentModalDoc.label);
+    try {
+      const { content } = await generateStudioDocument(documentModalDoc.document_type, selectedSourceIds);
+      await updateStudioDocument(documentModalDoc.id, content);
+      setModalContent(content);
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === documentModalDoc.id ? { ...d, content } : d))
+      );
+      setDocumentModalDoc((prev) => (prev ? { ...prev, content } : null));
+      toast.success("Regenerated");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Regeneration failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [documentModalDoc, currentProjectId, selectedSourceIds]);
 
   const handleDeleteDocument = async (id: string) => {
     try {
       await deleteStudioDocument(id);
       setDocuments((prev) => prev.filter((d) => d.id !== id));
-      if (selectedDocId === id) {
-        setSelectedDocId(null);
-        setOutputContent("");
-        setOutputLabel("");
-        setOutputType(null);
-      }
+      if (documentModalDoc?.id === id) handleCloseDocumentModal();
       toast.success("Document deleted");
     } catch {
       toast.error("Failed to delete");
@@ -233,17 +252,6 @@ const StudioPanel = ({ mobile }: { mobile?: boolean }) => {
     return `${days}d ago`;
   }
 
-  const handleCopyOutput = () => {
-    if (outputContent) {
-      navigator.clipboard.writeText(outputContent);
-      toast.success("Copied to clipboard");
-    }
-  };
-
-  const handleDownloadOutput = () => {
-    downloadAsPdf(outputContent, outputLabel);
-  };
-
   return (
     <aside className={`${mobile ? "w-full h-full" : "w-80 min-w-[300px] border-l"} border-border flex flex-col panel-bg`}>
       <div className="p-4 border-b border-border flex items-center justify-between">
@@ -285,7 +293,7 @@ const StudioPanel = ({ mobile }: { mobile?: boolean }) => {
         </div>
       </div>
 
-      {/* Loader card (only for the document being generated) + document list below */}
+      {/* Loader + document list only (no inline editor) */}
       <div className="flex-1 min-h-0 flex flex-col border-t border-border bg-background overflow-hidden">
         {loading ? (
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/30">
@@ -297,73 +305,25 @@ const StudioPanel = ({ mobile }: { mobile?: boolean }) => {
           </div>
         ) : null}
 
-        {!loading && (outputContent || selectedDocId) ? (
-          <>
-            <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border flex-shrink-0">
-              <span className="text-xs font-medium text-foreground truncate">{outputLabel}</span>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleSaveCurrentDocument}
-                  className="text-xs text-muted-foreground hover:text-foreground px-1.5"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyOutput}
-                  className="p-1.5 rounded hover:bg-muted transition-colors"
-                  title="Copy"
-                >
-                  <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadOutput}
-                  className="p-1.5 rounded hover:bg-muted transition-colors flex items-center gap-1"
-                  title="Download PDF"
-                >
-                  <Download className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground hidden sm:inline">Download</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRegenerateDocument}
-                  className="p-1.5 rounded hover:bg-muted transition-colors flex items-center gap-1"
-                  title="Regenerate"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground hidden sm:inline">Regenerate</span>
-                </button>
-              </div>
-            </div>
-            <textarea
-              value={outputContent}
-              onChange={(e) => setOutputContent(e.target.value)}
-              onBlur={handleSaveCurrentDocument}
-              className="flex-1 min-h-[160px] w-full p-3 text-sm text-foreground font-mono whitespace-pre-wrap resize-none focus:outline-none focus:ring-0 border-0 bg-transparent"
-              spellCheck={false}
-            />
-          </>
-        ) : !loading ? (
+        {!loading && documents.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-6 px-4 text-muted-foreground">
             <FileText className="w-8 h-8 mb-2 opacity-50" />
             <p className="text-xs leading-relaxed">
-              Select sources in the left panel, then click a document type above to generate. Documents appear in the list below.
+              Select sources in the left panel, then click a document type above to generate. Open a document from the list to view or edit.
             </p>
           </div>
         ) : null}
 
         {/* List of generated documents */}
         {documents.length > 0 ? (
-          <div className="flex-shrink-0 border-t border-border overflow-y-auto max-h-[40%]">
-            <p className="text-xs font-medium text-muted-foreground px-3 py-2">Generated documents</p>
-            <ul className="space-y-0.5 pb-2">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <p className="text-xs font-medium text-muted-foreground px-3 py-2 sticky top-0 bg-background border-b border-border">Generated documents</p>
+            <ul className="space-y-0.5 p-2 pb-4">
               {documents.map((doc) => (
                 <li
                   key={doc.id}
-                  className={`flex items-center gap-2 px-3 py-2 mx-2 rounded-lg group ${
-                    selectedDocId === doc.id ? "bg-primary/10" : "hover:bg-muted/50"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg group ${
+                    documentModalDoc?.id === doc.id ? "bg-primary/10" : "hover:bg-muted/50"
                   }`}
                 >
                   <button
@@ -415,6 +375,62 @@ const StudioPanel = ({ mobile }: { mobile?: boolean }) => {
         ) : null}
       </div>
       {error && <p className="text-xs text-destructive px-4 py-2 flex-shrink-0">{error}</p>}
+
+      {/* Document view/edit popup */}
+      <Dialog open={!!documentModalDoc} onOpenChange={(open) => !open && handleCloseDocumentModal()}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 gap-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+            <DialogHeader>
+              <DialogTitle className="text-base">{documentModalDoc?.label}</DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleSaveModalDocument}
+                className="text-xs font-medium text-primary hover:underline px-2"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(modalContent);
+                  toast.success("Copied");
+                }}
+                className="p-2 rounded hover:bg-muted"
+                title="Copy"
+              >
+                <Copy className="w-4 h-4 text-muted-foreground" />
+              </button>
+              <button
+                type="button"
+                onClick={() => documentModalDoc && downloadAsPdf(modalContent, documentModalDoc.label)}
+                className="p-2 rounded hover:bg-muted flex items-center gap-1"
+                title="Download PDF"
+              >
+                <Download className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs hidden sm:inline">Download</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleRegenerateModalDocument}
+                className="p-2 rounded hover:bg-muted flex items-center gap-1"
+                title="Regenerate"
+              >
+                <RefreshCw className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs hidden sm:inline">Regenerate</span>
+              </button>
+            </div>
+          </div>
+          <textarea
+            value={modalContent}
+            onChange={(e) => setModalContent(e.target.value)}
+            className="flex-1 min-h-[300px] w-full p-4 text-sm font-mono whitespace-pre-wrap resize-none focus:outline-none focus:ring-0 border-0 bg-transparent"
+            spellCheck={false}
+          />
+        </DialogContent>
+      </Dialog>
+
       <InsightsModal
         open={insightsModalOpen}
         onOpenChange={setInsightsModalOpen}
