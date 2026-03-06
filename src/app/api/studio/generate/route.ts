@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from '@supabase/supabase-js';
-import { withGeminiModelFallback, getGeminiModelList, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
+import { generateWithFallback, QUOTA_EXCEEDED_MESSAGE } from "@/lib/ai";
 
 const MAX_CONTEXT_PER_SOURCE = 28000;
 const MAX_CONTEXT_TOTAL = 120000;
@@ -49,10 +48,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'documentType is required' }, { status: 400 });
     }
 
-    const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
-    if (!apiKey) {
+    const hasGemini = !!process.env.GOOGLE_GEMINI_API_KEY?.trim();
+    const hasGroq = !!process.env.GROQ_API_KEY?.trim();
+    if (!hasGemini && !hasGroq) {
       return NextResponse.json(
-        { message: "GOOGLE_GEMINI_API_KEY is not set. Add your Gemini API key to enable Studio." },
+        { message: "Set GOOGLE_GEMINI_API_KEY or GROQ_API_KEY in .env.local to enable Studio." },
         { status: 503 }
       );
     }
@@ -90,12 +90,7 @@ Task: ${instruction}
 
 Generate the full document. Use markdown for structure (headers, lists, code blocks where appropriate). Base your output on the source content above. Do not include meta-commentary; just output the document.`;
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const content = await withGeminiModelFallback(genAI, getGeminiModelList(), async (model) => {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      return response.text();
-    });
+    const content = await generateWithFallback([{ role: "user", content: prompt }]);
 
     return NextResponse.json({ content });
   } catch (error: unknown) {

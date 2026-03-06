@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from '@supabase/supabase-js';
-import { withGeminiModelFallback, getGeminiModelList, QUOTA_EXCEEDED_MESSAGE } from "@/lib/gemini";
+import { generateWithFallback, QUOTA_EXCEEDED_MESSAGE } from "@/lib/ai";
+import type { ChatMessage } from "@/lib/ai";
 
 const MAX_CONTEXT_PER_SOURCE = 28000;
 const MAX_CONTEXT_TOTAL = 120000;
@@ -35,11 +35,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Message is required' }, { status: 400 });
     }
 
-    const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
-    
-    if (!apiKey) {
+    const hasGemini = !!process.env.GOOGLE_GEMINI_API_KEY?.trim();
+    const hasGroq = !!process.env.GROQ_API_KEY?.trim();
+    if (!hasGemini && !hasGroq) {
       return NextResponse.json(
-        { message: "GOOGLE_GEMINI_API_KEY is not set. Add your Gemini API key to enable chat." },
+        { message: "Set GOOGLE_GEMINI_API_KEY or GROQ_API_KEY in .env.local to enable chat." },
         { status: 503 }
       );
     }
@@ -78,30 +78,28 @@ export async function POST(req: Request) {
       }
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const content = await withGeminiModelFallback(genAI, getGeminiModelList(), async (model) => {
-      const chat = model.startChat({
-        history: (history || []).map((h: { role: string; content: string }) => ({
-          role: h.role === "assistant" ? "model" : "user",
-          parts: [{ text: h.content }],
-        })),
-        generationConfig: {
-          maxOutputTokens: 8192,
-        },
-      });
-      const fullPrompt = `Context:\n${context}\n\nUser Question: ${message}`;
-      const result = await chat.sendMessage(fullPrompt);
-      return result.response.text();
-    });
-    
+    const fullPrompt = `Context:\n${context}\n\nUser Question: ${message}`;
+    const chatHistory = (history || []).map((h: { role: string; content: string }) => ({
+      role: (h.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
+      content: h.content,
+    }));
+    const messages: ChatMessage[] = [
+      ...chatHistory,
+      { role: "user", content: fullPrompt },
+    ];
+    const content = await generateWithFallback(messages);
     return NextResponse.json({ content });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    const isQuota = message.includes("429") || message.includes("quota") || message.includes("Too Many Requests") || message.includes("Quota exceeded");
-    console.error('Gemini Chat Error:', error);
+    const errMessage = error instanceof Error ? error.message : String(error);
+    const isQuota =
+      errMessage.includes("429") ||
+      errMessage.includes("quota") ||
+      errMessage.includes("Too Many Requests") ||
+      errMessage.includes("Quota exceeded");
+    console.error("Chat AI Error:", error);
     if (isQuota) {
       return NextResponse.json({ message: QUOTA_EXCEEDED_MESSAGE }, { status: 429 });
     }
-    return NextResponse.json({ message }, { status: 500 });
+    return NextResponse.json({ message: errMessage }, { status: 500 });
   }
 }
