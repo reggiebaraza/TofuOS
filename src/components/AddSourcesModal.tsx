@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from "react";
-import { Star, FileText, Smartphone } from "lucide-react";
+import { Star, FileText, Smartphone, Upload } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,9 @@ export interface AddSourcesModalProps {
 
 const ACCEPT_DOCUMENTS = ".pdf,.txt,.doc,.docx,.xls,.xlsx";
 
+const isValidDocument = (file: File) =>
+  /\.(pdf|txt|doc|docx|xls|xlsx)$/i.test(file.name);
+
 const AddSourcesModal = ({
   open,
   onOpenChange,
@@ -41,7 +44,15 @@ const AddSourcesModal = ({
   const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
   const [documentsSubmitting, setDocumentsSubmitting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const addValidFiles = (files: FileList | File[]) => {
+    const list = Array.isArray(files) ? files : Array.from(files);
+    const valid = list.filter(isValidDocument);
+    setDocumentFiles((prev) => [...prev, ...valid]);
+    setDocumentsError(null);
+  };
 
   const handleAddReviews = async () => {
     setReviewsError(null);
@@ -70,19 +81,28 @@ const AddSourcesModal = ({
   };
 
   const handleDocumentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    const valid = files.filter(
-      (f) =>
-        f.name.endsWith(".pdf") ||
-        f.name.endsWith(".txt") ||
-        f.name.endsWith(".doc") ||
-        f.name.endsWith(".docx") ||
-        f.name.endsWith(".xls") ||
-        f.name.endsWith(".xlsx")
-    );
-    setDocumentFiles((prev) => [...prev, ...valid]);
-    setDocumentsError(null);
+    const files = e.target.files;
+    if (files) addValidFiles(files);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    addValidFiles(e.dataTransfer.files);
   };
 
   const removeDocument = (index: number) => {
@@ -113,6 +133,7 @@ const AddSourcesModal = ({
       setReviewsError(null);
       setDocumentFiles([]);
       setDocumentsError(null);
+      setIsDragging(false);
     }
     onOpenChange(open);
   };
@@ -205,14 +226,31 @@ const AddSourcesModal = ({
                 onChange={handleDocumentSelect}
                 className="hidden"
               />
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full border-dashed"
-                onClick={() => fileInputRef.current?.click()}
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={cn(
+                  "rounded-lg border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-2 py-6 px-4 min-h-[120px]",
+                  isDragging
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-muted/30 hover:bg-muted/50"
+                )}
               >
-                Choose PDF, text, Word, or Excel files
-              </Button>
+                <Upload className="w-8 h-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground text-center">
+                  {isDragging ? "Drop files here" : "Drag and drop files here, or"}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-dashed"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Choose PDF, text, Word, or Excel files
+                </Button>
+              </div>
               {documentFiles.length > 0 && (
                 <ul className="text-sm space-y-1 mt-2">
                   {documentFiles.map((file, i) => (
