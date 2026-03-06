@@ -71,6 +71,10 @@ export async function POST(req: Request) {
           ? `Project context (use this to align answers): ${projectContext.trim()}\n\n`
           : '';
         context += `The user has selected the following sources. Use the actual content below to answer accurately. If content is missing for a source, say so and use general PM knowledge only for that part.\n\n${sourceContent}`;
+        const allMissing = sources.every((s) => !s.content?.trim());
+        if (allMissing) {
+          context += '\n\nNote: No text was extracted from any of these sources (e.g. PDFs may have been added before extraction was enabled, or extraction failed). Suggest the user remove these sources and re-add the PDFs via Add Sources so the app can extract their content, or paste relevant excerpts.';
+        }
       }
     }
 
