@@ -34,11 +34,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ insights: [] });
     }
 
+    const hasOpenAI = !!process.env.OPENAI_API_KEY?.trim();
     const hasGemini = !!process.env.GOOGLE_GEMINI_API_KEY?.trim();
     const hasGroq = !!process.env.GROQ_API_KEY?.trim();
-    if (!hasGemini && !hasGroq) {
+    if (!hasOpenAI && !hasGemini && !hasGroq) {
       return NextResponse.json(
-        { message: "Set GOOGLE_GEMINI_API_KEY or GROQ_API_KEY in .env.local to enable analysis." },
+        { message: "Set OPENAI_API_KEY, GOOGLE_GEMINI_API_KEY, or GROQ_API_KEY in .env.local to enable analysis." },
         { status: 503 }
       );
     }
