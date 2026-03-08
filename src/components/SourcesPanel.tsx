@@ -108,26 +108,19 @@ const SourcesPanel = ({ mobile }: { mobile?: boolean }) => {
   };
 
   return (
-    <aside className={`${mobile ? "w-full h-full" : "w-72 min-w-[280px] border-r"} border-border flex flex-col panel-bg pb-safe`}>
-      <div className="p-4 border-b border-border flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">Sources</h2>
-        <button
-          type="button"
-          className="p-1 rounded hover:bg-muted transition-colors"
-          aria-label="View options (coming soon)"
-          title="View options (coming soon)"
-        >
-          <svg className="w-4 h-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        </button>
+    <aside className={`${mobile ? "w-full h-full" : "w-72 min-w-[280px] shrink-0 border-r"} border-border flex flex-col panel-bg pb-safe`} aria-label="Sources">
+      <div className="p-4 pb-3 border-b border-border">
+        <h2 className="text-sm font-semibold text-foreground tracking-tight">Sources</h2>
       </div>
 
-      <div className="p-3">
+      <div className="p-3 pt-0">
         <button
           onClick={() => setAddModalOpen(true)}
           disabled={!currentProjectId}
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 border border-dashed border-border rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          className="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-dashed border-border rounded-xl text-sm font-medium text-muted-foreground hover:border-primary/40 hover:bg-muted/50 hover:text-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none"
+          aria-label="Add sources"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4" aria-hidden />
           Add Sources
         </button>
         <AddSourcesModal
@@ -139,57 +132,62 @@ const SourcesPanel = ({ mobile }: { mobile?: boolean }) => {
         />
       </div>
 
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden />
           <input
-            type="text"
+            type="search"
             placeholder="Search sources..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm bg-muted rounded-lg border-none outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground"
+            className="w-full pl-9 pr-3 py-2.5 text-sm bg-muted/80 rounded-xl border border-transparent focus:border-border focus:bg-background outline-none focus:ring-2 focus:ring-ring/20 text-foreground placeholder:text-muted-foreground transition-colors"
+            aria-label="Search sources"
           />
         </div>
       </div>
 
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-3">
         <button
           onClick={toggleAll}
-          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg py-1 pr-1"
+          aria-pressed={allSelected}
         >
-          <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${allSelected ? "bg-primary border-primary" : "border-border"}`}>
-            {allSelected && <svg className="w-3 h-3 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+          <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${allSelected ? "bg-primary border-primary" : "border-border"}`}>
+            {allSelected && <svg className="w-3 h-3 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden><polyline points="20 6 9 17 4 12"/></svg>}
           </div>
-          Select All Sources
+          Select All
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 space-y-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-0.5">
         {loading ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Loading sources…</p>
+          <p className="text-sm text-muted-foreground py-6 text-center">Loading sources…</p>
         ) : error ? (
-          <p className="text-sm text-destructive py-4 text-center">{error}</p>
+          <p className="text-sm text-destructive py-6 text-center px-2">{error}</p>
         ) : (
           sources
           .filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
           .map((source) => (
-            <div
+            <button
               key={source.id}
+              type="button"
               onClick={() => toggleSource(source.id)}
-              className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-muted transition-colors group"
+              className="w-full flex items-center gap-3 p-2.5 rounded-xl cursor-pointer hover:bg-muted/80 transition-colors group text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              aria-pressed={source.selected}
+              aria-label={`${source.name}, ${source.selected ? "selected" : "not selected"}`}
             >
-              <div className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${source.selected ? "bg-primary border-primary" : "border-border"}`}>
-                {source.selected && <svg className="w-3 h-3 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+              <div className={`w-4 h-4 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-colors ${source.selected ? "bg-primary border-primary" : "border-border"}`}>
+                {source.selected && <svg className="w-3 h-3 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden><polyline points="20 6 9 17 4 12"/></svg>}
               </div>
               {iconForType(source.type)}
               <div className="flex-1 min-w-0">
-                <span className="text-sm truncate text-foreground block">{source.name}</span>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-sm font-medium truncate text-foreground block">{source.name}</span>
+                <span className="text-[11px] text-muted-foreground">
                   {source.type}
                   {source.created_at && ` · ${formatDistanceToNow(new Date(source.created_at), { addSuffix: true })}`}
                 </span>
               </div>
-            </div>
+            </button>
           )))}
       </div>
     </aside>

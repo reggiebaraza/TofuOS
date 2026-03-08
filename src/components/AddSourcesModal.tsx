@@ -210,25 +210,25 @@ const AddSourcesModal = ({
 
   return (
     <Dialog open={open} onOpenChange={resetOnClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add sources</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="sm:max-w-md sm:rounded-xl">
+        <DialogHeader className="space-y-1.5">
+          <DialogTitle className="text-lg">Add sources</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             Choose a source type and add app reviews, documents, or audio to your project.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="reviews" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="reviews" className="flex items-center gap-2">
+        <Tabs defaultValue="reviews" className="w-full mt-1">
+          <TabsList className="grid w-full grid-cols-3 h-11 rounded-xl p-1 bg-muted/60">
+            <TabsTrigger value="reviews" className="flex items-center gap-2 rounded-lg">
               <Star className="w-4 h-4" />
               Reviews
             </TabsTrigger>
-            <TabsTrigger value="documents" className="flex items-center gap-2">
+            <TabsTrigger value="documents" className="flex items-center gap-2 rounded-lg">
               <FileText className="w-4 h-4" />
               Documents
             </TabsTrigger>
-            <TabsTrigger value="audio" className="flex items-center gap-2">
+            <TabsTrigger value="audio" className="flex items-center gap-2 rounded-lg">
               <Mic className="w-4 h-4" />
               Audio
             </TabsTrigger>
@@ -360,7 +360,7 @@ const AddSourcesModal = ({
 
           <TabsContent value="audio" className="space-y-4 mt-4">
             <p className="text-sm text-muted-foreground">
-              Upload audio (e.g. interviews, calls). Speech is transcribed with AI and used like document content. Max 25 MB per file. Requires OPENAI_API_KEY.
+              Upload audio (e.g. interviews, calls). Speech is transcribed with Gemini and used like document content. Max 20 MB per file. Requires GOOGLE_GEMINI_API_KEY.
             </p>
             <div className="space-y-2">
               <Label>Audio files</Label>

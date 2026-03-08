@@ -190,11 +190,10 @@ const ChatPanel = () => {
   };
 
   return (
-    <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden panel-bg">
-      {/* Header: Chat title + Search only */}
-      <div className="px-3 sm:px-6 py-3 border-b border-border flex-shrink-0 space-y-2">
+    <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden panel-bg" role="main" aria-label="Chat">
+      <div className="shrink-0 px-4 sm:px-6 py-3 border-b border-border space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-foreground">Chat</h2>
+          <h2 className="text-sm font-semibold text-foreground tracking-tight">Chat</h2>
         </div>
         {/* Search project */}
         {currentProjectId && (
@@ -207,14 +206,14 @@ const ChatPanel = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && runSearch()}
-                className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground"
+                className="w-full pl-7 pr-3 py-2 text-xs rounded-xl border border-border bg-muted/50 focus:bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 transition-colors"
                 aria-label="Search project"
               />
             </div>
             <button
               type="button"
               onClick={runSearch}
-              className="px-2 py-1.5 text-xs rounded-md border border-border hover:bg-muted"
+              className="px-3 py-2 text-xs font-medium rounded-xl border border-border hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               Search
             </button>
@@ -395,13 +394,13 @@ const ChatPanel = () => {
 
         {/* Default suggestions */}
         {!isThinking && (
-          <div className="space-y-1.5 pt-2">
+          <div className="space-y-2 pt-2">
             {suggestions.map((s, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => setInput(s)}
-                className="block w-fit text-left text-xs px-3 py-2 suggestion-bg rounded-lg suggestion-hover transition-colors text-muted-foreground hover:text-foreground border border-border"
+                className="block w-fit text-left text-xs px-4 py-2.5 suggestion-bg rounded-xl suggestion-hover transition-colors text-muted-foreground hover:text-foreground border border-border focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
                 {s}
               </button>
@@ -411,13 +410,13 @@ const ChatPanel = () => {
       </div>
 
       {/* Input */}
-      <div className="p-3 sm:p-4 border-t border-border bg-background flex-shrink-0">
+      <div className="p-4 sm:p-5 border-t border-border bg-background shrink-0">
         {selectedSourceNames.length > 0 && (
-          <p className="text-xs text-muted-foreground mb-1.5 truncate" title={selectedSourceNames.join(", ")}>
+          <p className="text-xs text-muted-foreground mb-2 truncate" title={selectedSourceNames.join(", ")}>
             Using: {selectedSourceNames.slice(0, 3).join(", ")}{selectedSourceNames.length > 3 ? ` +${selectedSourceNames.length - 3} more` : ""}
           </p>
         )}
-        <div className="flex items-center gap-2 chat-input-bg border border-border rounded-xl px-3 sm:px-4 py-2 focus-within:ring-2 focus-within:ring-ring transition-shadow min-w-0">
+        <div className="flex items-center gap-2 chat-input-bg border border-border rounded-2xl px-4 py-2.5 focus-within:ring-2 focus-within:ring-ring/20 focus-within:border-primary/30 transition-all min-w-0">
           <input
             type="text"
             placeholder="Type a message..."

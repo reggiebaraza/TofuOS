@@ -21,7 +21,7 @@
     --secondary-foreground: 30 10% 25%;
 
     --muted: 35 15% 92%;
-    --muted-foreground: 30 8% 50%;
+    --muted-foreground: 30 8% 42%;
 
     --accent: 24 70% 55%;
     --accent-foreground: 40 30% 97%;
@@ -33,7 +33,11 @@
     --input: 35 18% 88%;
     --ring: 24 80% 50%;
 
-    --radius: 0.625rem;
+    --radius: 0.75rem;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.04);
 
     --sidebar-background: 30 15% 98%;
     --sidebar-foreground: 30 8% 30%;
@@ -67,7 +71,7 @@
     --secondary: 30 10% 16%;
     --secondary-foreground: 40 20% 85%;
     --muted: 30 8% 18%;
-    --muted-foreground: 35 10% 55%;
+    --muted-foreground: 35 12% 62%;
     --accent: 24 70% 55%;
     --accent-foreground: 30 10% 8%;
     --destructive: 0 62% 30%;
@@ -92,6 +96,10 @@
     --chat-input-bg: 30 10% 12%;
     --tofu-warm: 28 65% 55%;
     --tofu-cream: 30 12% 16%;
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.2);
+    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.15), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   }
 }
 
@@ -130,6 +138,11 @@
   }
   .tofu-gradient {
     background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--tofu-warm)));
+  }
+  .transition-smooth {
+    transition-property: color, background-color, border-color, box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
   }
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);

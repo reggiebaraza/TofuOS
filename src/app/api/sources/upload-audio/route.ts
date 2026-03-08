@@ -1,10 +1,49 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { withGeminiModelFallback, getGeminiModelList } from '@/lib/gemini';
 
 export const runtime = 'nodejs';
 
 const MAX_TRANSCRIPT_LENGTH = 25000; // match document truncation
-const WHISPER_MAX_SIZE_MB = 25;
+const MAX_AUDIO_SIZE_MB = 20; // Gemini inline data size limit is ~20MB in practice
+
+function getAudioMimeType(filename: string): string {
+  const ext = filename.replace(/^.*\./, '').toLowerCase();
+  const map: Record<string, string> = {
+    mp3: 'audio/mpeg',
+    mpeg: 'audio/mpeg',
+    mpga: 'audio/mpeg',
+    wav: 'audio/wav',
+    m4a: 'audio/mp4',
+    mp4: 'audio/mp4',
+    webm: 'audio/webm',
+    ogg: 'audio/ogg',
+    flac: 'audio/flac',
+  };
+  return map[ext] ?? 'audio/mpeg';
+}
+
+async function transcribeWithGemini(
+  audioBuffer: Buffer,
+  mimeType: string,
+  apiKey: string
+): Promise<string | null> {
+  const base64 = audioBuffer.toString('base64');
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const prompt =
+    'Transcribe this audio to plain text. Output only the transcription, no extra commentary or formatting.';
+
+  const result = await withGeminiModelFallback(genAI, getGeminiModelList(), async (model) => {
+    return model.generateContent([
+      { inlineData: { mimeType, data: base64 } },
+      { text: prompt },
+    ]);
+  });
+
+  const text = result?.response?.text?.();
+  return typeof text === 'string' ? text.trim() : null;
+}
 
 function truncate(text: string, max: number): string {
   if (!text || text.length <= max) return text;
@@ -19,10 +58,10 @@ function safeForDb(s: string | null): string | null {
 
 export async function POST(req: Request) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    const apiKey = process.env.GOOGLE_GEMINI_API_KEY?.trim();
     if (!apiKey) {
       return NextResponse.json(
-        { message: 'OPENAI_API_KEY is not set. Add it in Settings or .env.local to use audio transcription.' },
+        { message: 'GOOGLE_GEMINI_API_KEY is not set. Add it in Settings or .env.local to use audio transcription.' },
         { status: 503 }
       );
     }
@@ -63,30 +102,19 @@ export async function POST(req: Request) {
       if (!(file instanceof File)) continue;
       const name = file.name || 'Audio';
       const sizeMB = file.size / (1024 * 1024);
-      if (sizeMB > WHISPER_MAX_SIZE_MB) {
+      if (sizeMB > MAX_AUDIO_SIZE_MB) {
         return NextResponse.json(
-          { message: `File "${name}" is too large (max ${WHISPER_MAX_SIZE_MB} MB).` },
+          { message: `File "${name}" is too large (max ${MAX_AUDIO_SIZE_MB} MB).` },
           { status: 400 }
         );
       }
 
       let transcript: string | null = null;
       try {
-        const form = new FormData();
-        form.set('file', file);
-        form.set('model', 'whisper-1');
-        const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}` },
-          body: form,
-        });
-        if (!whisperRes.ok) {
-          const errBody = await whisperRes.text();
-          console.error('Whisper API error:', whisperRes.status, errBody);
-          throw new Error(whisperRes.status === 401 ? 'Invalid OpenAI API key' : errBody || 'Transcription failed');
-        }
-        const data = await whisperRes.json();
-        transcript = typeof data?.text === 'string' ? data.text.trim() : null;
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const mimeType = getAudioMimeType(name);
+        transcript = await transcribeWithGemini(buffer, mimeType, apiKey);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Transcription failed';
         console.warn('Transcription error for', name, msg);

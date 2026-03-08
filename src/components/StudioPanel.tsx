@@ -251,9 +251,9 @@ const StudioPanel = ({ mobile }: { mobile?: boolean }) => {
   }
 
   return (
-    <aside className={`${mobile ? "w-full h-full" : "w-80 min-w-[300px] border-l"} border-border flex flex-col panel-bg`}>
-      <div className="p-4 border-b border-border flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">Studio</h2>
+    <aside className={`${mobile ? "w-full h-full" : "w-80 min-w-[300px] shrink-0 border-l"} border-border flex flex-col panel-bg`} aria-label="Studio">
+      <div className="p-4 pb-3 border-b border-border flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground tracking-tight">Studio</h2>
         <button
           type="button"
           onClick={() => setGridLayout(!gridLayout)}
@@ -275,10 +275,10 @@ const StudioPanel = ({ mobile }: { mobile?: boolean }) => {
               key={item.id}
               type="button"
               onClick={() => handleDocumentCardClick(item)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl text-left transition-all group ${
+              className={`flex items-center gap-2.5 p-3.5 rounded-xl text-left transition-all group border-2 studio-card-bg studio-card-hover border-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                 activeItem === item.id
-                  ? "bg-primary/10 border border-primary/30"
-                  : "studio-card-bg studio-card-hover border border-transparent"
+                  ? "bg-primary/10 border-primary/30 shadow-sm"
+                  : "hover:border-border"
               }`}
             >
               <span className={item.color}>{item.icon}</span>
