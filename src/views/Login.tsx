@@ -155,7 +155,7 @@ const Login = () => {
               />
               <Button
                 type="submit"
-                className="w-full tofu-gradient text-primary-foreground hover:opacity-90 shadow-sm"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? "Signing in…" : "Sign in"}
