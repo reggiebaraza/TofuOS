@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -32,12 +32,30 @@ export default function LoginPage() {
 
       router.push("/dashboard");
       router.refresh();
-    } catch {
-      setError("Something went wrong");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      setError(
+        message.includes("NEXT_PUBLIC_SUPABASE")
+          ? "App not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel (or .env.local)."
+          : "Something went wrong"
+      );
     } finally {
       setLoading(false);
     }
   };
+
+  if (!hasSupabaseConfig()) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center px-4" style={{ background: "var(--background)" }}>
+        <div className="w-full max-w-md rounded-2xl border p-6 text-center" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+          <p className="mb-2 text-lg font-medium" style={{ color: "var(--foreground)" }}>Configuration required</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            Add <strong>NEXT_PUBLIC_SUPABASE_URL</strong> and <strong>NEXT_PUBLIC_SUPABASE_ANON_KEY</strong> in your Vercel project → Settings → Environment Variables, then redeploy.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-dvh items-center justify-center px-4" style={{ background: "var(--background)" }}>

@@ -10,3 +10,11 @@ export function createClient() {
 
   return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
+
+/** Call from client components to check if Supabase is configured (avoids throwing). */
+export function hasSupabaseConfig(): boolean {
+  return !!(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
