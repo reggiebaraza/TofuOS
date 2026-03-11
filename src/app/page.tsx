@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/supabase/server";
 
 export default async function Home() {
-  const session = await auth();
-  if (session) {
+  const session = await getSession();
+  if (session?.user) {
     redirect("/dashboard");
   } else {
     redirect("/login");

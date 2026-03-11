@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { streamText } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { google } from "@ai-sdk/google";
+import { getSession } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 interface UIMessageInput {
   role: string;
@@ -31,7 +31,7 @@ function toStandardMessages(msgs: UIMessageInput[]): Array<{ role: "user" | "ass
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) {
     return new Response("Unauthorized", { status: 401 });
   }
@@ -40,25 +40,29 @@ export async function POST(req: NextRequest) {
   const rawMessages: UIMessageInput[] = body.messages || [];
   const interviewId = body.interviewId;
 
-  const interview = await prisma.interview.findFirst({
-    where: { id: interviewId, userId: session.user.id },
-    include: { persona: true },
-  });
+  const supabase = await createClient();
+  const { data: interviewRow, error: interviewError } = await supabase
+    .from("interviews")
+    .select("*, persona:personas(*)")
+    .eq("id", interviewId)
+    .eq("user_id", session.user.id)
+    .single();
 
-  if (!interview) {
+  if (interviewError || !interviewRow) {
     return new Response("Interview not found", { status: 404 });
   }
+
+  const persona = (interviewRow as { persona: Record<string, unknown> }).persona;
+  const systemPrompt = persona?.system_prompt as string;
 
   const lastUserMessage = rawMessages[rawMessages.length - 1];
   if (lastUserMessage?.role === "user") {
     const textContent = extractText(lastUserMessage);
     if (textContent) {
-      await prisma.message.create({
-        data: {
-          interviewId,
-          role: "user",
-          content: textContent,
-        },
+      await supabase.from("messages").insert({
+        interview_id: interviewId,
+        role: "user",
+        content: textContent,
       });
     }
   }
@@ -66,23 +70,22 @@ export async function POST(req: NextRequest) {
   const standardMessages = toStandardMessages(rawMessages);
 
   const result = streamText({
-    model: openai("gpt-4o"),
-    system: interview.persona.systemPrompt,
+    model: google(process.env.GEMINI_MODEL || "gemini-2.0-flash"),
+    system: systemPrompt,
     messages: standardMessages,
     onFinish: async ({ text }) => {
       if (text) {
-        await prisma.message.create({
-          data: {
-            interviewId,
-            role: "assistant",
-            content: text,
-          },
+        await supabase.from("messages").insert({
+          interview_id: interviewId,
+          role: "assistant",
+          content: text,
         });
       }
-      await prisma.interview.update({
-        where: { id: interviewId },
-        data: { updatedAt: new Date() },
-      });
+      await supabase
+        .from("interviews")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", interviewId)
+        .eq("user_id", session.user.id);
     },
   });
 

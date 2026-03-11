@@ -163,6 +163,6 @@ Production runs on Vercel with Turso as the database (no local SQLite on the ser
    | `NEXTAUTH_SECRET` | Strong random secret (`openssl rand -base64 32`) |
    | `NEXTAUTH_URL` | Production URL, e.g. `https://your-project.vercel.app` (set after first deploy if needed) |
    | `OPENAI_API_KEY` | Your OpenAI API key |
-   | `DATABASE_URL` | Can be set to the same as `TURSO_DATABASE_URL` or a placeholder; runtime uses Turso when `TURSO_DATABASE_URL` is set. |
+   | `DATABASE_URL` | Optional at build time. Set to your Turso URL (same as `TURSO_DATABASE_URL`) for consistency, or leave unset—the build will still succeed. |
 
 5. After the first deploy, set `NEXTAUTH_URL` to the Vercel project URL and redeploy so auth callbacks work.

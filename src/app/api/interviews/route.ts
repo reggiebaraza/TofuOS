@@ -1,27 +1,61 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
+import { interviewRowToJson, personaRowToJson } from "@/lib/supabase/map";
 
 export async function GET() {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const interviews = await prisma.interview.findMany({
-    where: { userId: session.user.id },
-    orderBy: { updatedAt: "desc" },
-    include: {
-      persona: { select: { name: true, avatarEmoji: true, role: true, company: true } },
-      _count: { select: { messages: true } },
-    },
-  });
+  const supabase = await createClient();
+  const { data: rows, error } = await supabase
+    .from("interviews")
+    .select("*")
+    .eq("user_id", session.user.id)
+    .order("updated_at", { ascending: false });
 
-  return NextResponse.json(interviews);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const interviews = (rows || []).map(interviewRowToJson);
+  const personaIds = [...new Set(interviews.map((i) => i.personaId))];
+
+  const { data: personaRows } = await supabase
+    .from("personas")
+    .select("id, name, avatar_emoji, role, company")
+    .in("id", personaIds);
+  const personaMap = new Map(
+    (personaRows || []).map((p) => [
+      p.id,
+      { name: p.name, avatarEmoji: p.avatar_emoji, role: p.role, company: p.company },
+    ])
+  );
+
+  const interviewIds = interviews.map((i) => i.id);
+  const { data: messageRows } = await supabase
+    .from("messages")
+    .select("interview_id")
+    .in("interview_id", interviewIds);
+  const messageCountByInterview: Record<string, number> = {};
+  for (const m of messageRows || []) {
+    const id = m.interview_id as string;
+    messageCountByInterview[id] = (messageCountByInterview[id] || 0) + 1;
+  }
+
+  const result = interviews.map((i) => ({
+    ...i,
+    persona: personaMap.get(i.personaId as string) ?? null,
+    _count: { messages: messageCountByInterview[i.id as string] ?? 0 },
+  }));
+
+  return NextResponse.json(result);
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -36,30 +70,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const persona = await prisma.persona.findFirst({
-      where: { id: personaId, userId: session.user.id },
-    });
+    const supabase = await createClient();
+    const { data: persona, error: personaError } = await supabase
+      .from("personas")
+      .select("*")
+      .eq("id", personaId)
+      .eq("user_id", session.user.id)
+      .single();
 
-    if (!persona) {
+    if (personaError || !persona) {
       return NextResponse.json(
         { error: "Persona not found" },
         { status: 404 }
       );
     }
 
-    const interview = await prisma.interview.create({
-      data: {
-        userId: session.user.id,
-        personaId,
+    const { data: interview, error } = await supabase
+      .from("interviews")
+      .insert({
+        user_id: session.user.id,
+        persona_id: personaId,
         title: title || `Interview with ${persona.name}`,
         status: "active",
-      },
-      include: {
-        persona: true,
-      },
-    });
+      })
+      .select()
+      .single();
 
-    return NextResponse.json(interview, { status: 201 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const out = {
+      ...interviewRowToJson(interview!),
+      persona: personaRowToJson(persona),
+    };
+    return NextResponse.json(out, { status: 201 });
   } catch {
     return NextResponse.json(
       { error: "Failed to create interview" },

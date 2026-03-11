@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { auth } from "@/lib/auth";
+import { google } from "@ai-sdk/google";
+import { getSession } from "@/lib/supabase/server";
 import { buildPersonaGenerationPrompt } from "@/lib/prompts";
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const prompt = buildPersonaGenerationPrompt(params);
 
     const { text } = await generateText({
-      model: openai("gpt-4o"),
+      model: google(process.env.GEMINI_MODEL || "gemini-2.0-flash"),
       prompt,
       temperature: 0.9,
     });

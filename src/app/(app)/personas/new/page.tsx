@@ -90,7 +90,7 @@ export default function NewPersonaPage() {
       const persona = await res.json();
       await savePersona(persona);
     } catch {
-      setError("Failed to generate persona. Make sure your OpenAI API key is configured.");
+      setError("Failed to generate persona. Make sure your Gemini API key is configured.");
       setLoading(false);
     }
   };

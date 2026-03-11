@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useSupabaseSession } from "@/lib/supabase/session";
+import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect } from "react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: "◻️" },
@@ -13,8 +14,29 @@ const navItems = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const router = useRouter();
+  const { session, loading } = useSupabaseSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
+
+  useEffect(() => {
+    if (loading) return;
+    if (!session?.user) router.replace("/login");
+  }, [loading, session?.user, router]);
+
+  if (loading || !session?.user) {
+    return (
+      <div className="flex h-dvh items-center justify-center" style={{ background: "var(--background)" }}>
+        <p style={{ color: "var(--muted)" }}>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-dvh overflow-hidden" style={{ background: "var(--background)" }}>
@@ -75,7 +97,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </p>
             </div>
             <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={handleSignOut}
               className="ml-2 shrink-0 rounded-lg p-1.5 text-xs transition-colors hover:opacity-70"
               style={{ color: "var(--muted)" }}
               title="Sign out"

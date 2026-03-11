@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { google } from "@ai-sdk/google";
+import { getSession } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -13,31 +13,44 @@ export async function POST(req: NextRequest) {
   try {
     const { interviewId } = await req.json();
 
-    const interview = await prisma.interview.findFirst({
-      where: { id: interviewId, userId: session.user.id },
-      include: {
-        persona: { select: { name: true, role: true, company: true } },
-        messages: { orderBy: { createdAt: "asc" } },
-      },
-    });
+    const supabase = await createClient();
+    const { data: interviewRow, error: interviewError } = await supabase
+      .from("interviews")
+      .select("*")
+      .eq("id", interviewId)
+      .eq("user_id", session.user.id)
+      .single();
 
-    if (!interview) {
+    if (interviewError || !interviewRow) {
       return NextResponse.json(
         { error: "Interview not found" },
         { status: 404 }
       );
     }
 
-    const transcript = interview.messages
+    const { data: personaRow } = await supabase
+      .from("personas")
+      .select("name, role, company")
+      .eq("id", interviewRow.persona_id)
+      .single();
+
+    const { data: messageRows } = await supabase
+      .from("messages")
+      .select("role, content, created_at")
+      .eq("interview_id", interviewId)
+      .order("created_at", { ascending: true });
+
+    const messages = messageRows || [];
+    const transcript = messages
       .map(
         (m) =>
-          `${m.role === "user" ? "Interviewer" : interview.persona.name}: ${m.content}`
+          `${m.role === "user" ? "Interviewer" : personaRow?.name}: ${m.content}`
       )
       .join("\n\n");
 
     const { text } = await generateText({
-      model: openai("gpt-4o"),
-      prompt: `Analyze this interview transcript with ${interview.persona.name} (${interview.persona.role}${interview.persona.company ? ` at ${interview.persona.company}` : ""}).
+      model: google(process.env.GEMINI_MODEL || "gemini-2.0-flash"),
+      prompt: `Analyze this interview transcript with ${personaRow?.name} (${personaRow?.role}${personaRow?.company ? ` at ${personaRow.company}` : ""}).
 
 Extract the following in JSON format:
 {
@@ -62,14 +75,16 @@ ${transcript}`,
 
     const insights = JSON.parse(jsonMatch[0]);
 
-    await prisma.interview.update({
-      where: { id: interviewId },
-      data: {
+    await supabase
+      .from("interviews")
+      .update({
         status: "completed",
         summary: insights.summary,
         insights: JSON.stringify(insights),
-      },
-    });
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", interviewId)
+      .eq("user_id", session.user.id);
 
     return NextResponse.json(insights);
   } catch {

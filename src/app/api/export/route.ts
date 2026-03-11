@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import JSZip from "jszip";
 import { format } from "date-fns";
 
@@ -10,9 +10,9 @@ function interviewToMarkdown(
     status: string;
     summary: string | null;
     insights: string | null;
-    createdAt: Date;
+    createdAt: string | Date;
     persona: { name: string; role: string; company: string | null; industry: string | null };
-    messages: { role: string; content: string; createdAt: Date }[];
+    messages: { role: string; content: string; createdAt: string | Date }[];
   }
 ): string {
   let md = `# ${interview.title}\n\n`;
@@ -62,10 +62,10 @@ function interviewToJson(interview: {
   status: string;
   summary: string | null;
   insights: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string | Date;
+  updatedAt: string | Date;
   persona: { name: string; role: string; company: string | null; industry: string | null };
-  messages: { role: string; content: string; createdAt: Date }[];
+  messages: { role: string; content: string; createdAt: string | Date }[];
 }) {
   return {
     id: interview.id,
@@ -91,9 +91,9 @@ function interviewsToCsv(
     status: string;
     summary: string | null;
     insights: string | null;
-    createdAt: Date;
+    createdAt: string | Date;
     persona: { name: string; role: string; company: string | null; industry: string | null };
-    messages: { role: string; content: string; createdAt: Date }[];
+    messages: { role: string; content: string; createdAt: string | Date }[];
   }[]
 ): string {
   const headers = [
@@ -136,14 +136,14 @@ function interviewsToCsv(
       i.summary || "",
       painPoints,
       themes,
-    ].map((v) => `"${v.replace(/"/g, '""')}"`);
+    ].map((v) => `"${String(v).replace(/"/g, '""')}"`);
   });
 
   return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -158,18 +158,68 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const interviews = await prisma.interview.findMany({
-      where: {
-        id: { in: interviewIds },
-        userId: session.user.id,
-      },
-      include: {
+    const supabase = await createClient();
+    const { data: interviewRows, error: interviewError } = await supabase
+      .from("interviews")
+      .select("*")
+      .in("id", interviewIds)
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: false });
+
+    if (interviewError || !interviewRows?.length) {
+      return NextResponse.json(
+        { error: "No interviews found" },
+        { status: 404 }
+      );
+    }
+
+    const personaIds = [...new Set(interviewRows.map((r) => r.persona_id))];
+    const { data: personaRows } = await supabase
+      .from("personas")
+      .select("id, name, role, company, industry")
+      .in("id", personaIds);
+    const personaMap = new Map((personaRows || []).map((p) => [p.id, p]));
+
+    const { data: allMessages } = await supabase
+      .from("messages")
+      .select("interview_id, role, content, created_at")
+      .in("interview_id", interviewRows.map((r) => r.id))
+      .order("created_at", { ascending: true });
+
+    const messagesByInterview = new Map<string, { role: string; content: string; createdAt: string }[]>();
+    for (const m of allMessages || []) {
+      const list = messagesByInterview.get(m.interview_id) || [];
+      list.push({
+        role: m.role,
+        content: m.content,
+        createdAt: m.created_at,
+      });
+      messagesByInterview.set(m.interview_id, list);
+    }
+
+    const interviews = interviewRows.map((row) => {
+      const persona = personaMap.get(row.persona_id) ?? {
+        name: "",
+        role: "",
+        company: null as string | null,
+        industry: null as string | null,
+      };
+      return {
+        id: row.id,
+        title: row.title,
+        status: row.status,
+        summary: row.summary,
+        insights: row.insights,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
         persona: {
-          select: { name: true, role: true, company: true, industry: true },
+          name: persona.name,
+          role: persona.role,
+          company: persona.company ?? null,
+          industry: persona.industry ?? null,
         },
-        messages: { orderBy: { createdAt: "asc" } },
-      },
-      orderBy: { createdAt: "desc" },
+        messages: messagesByInterview.get(row.id) ?? [],
+      };
     });
 
     if (interviews.length === 1 && exportFormat !== "csv") {
